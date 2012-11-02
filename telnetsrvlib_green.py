@@ -30,7 +30,7 @@ import traceback
 import curses.ascii
 import curses.has_key
 import curses
-import logging
+#import logging
 import re
 #if not hasattr(socket, 'SHUT_RDWR'):
 #    socket.SHUT_RDWR = 2
@@ -178,11 +178,24 @@ CMDS = {
     NEW_ENVIRON: 'New - Environment variables',
 }
 
+class dummylogger(object):
+    def debug(self, *kargs, **kwargs):
+        pass
+    def info(self, *kargs, **kwargs):
+        pass
+    def warn(self, *kargs, **kwargs):
+        pass
+    def error(self, *kargs, **kwargs):
+        pass
+    def exception(self, *kargs, **kwargs):
+        pass
+
+
 class TelnetHandler(SocketServer.BaseRequestHandler):
     "A telnet server based on the client in telnetlib"
     
     # Override as necessary
-    logging = logging
+    logging = dummylogger()
     
     # What I am prepared to do?
     DOACK = {
@@ -314,6 +327,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 
     def finish(self):
         "End this session"
+        self.logging.debug("Session disconnected.")
         self.sock.shutdown(socket.SHUT_RDWR)
         self.greenlet.kill()
         self.session_end()
@@ -519,6 +533,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 
     def write(self, text):
         """Send a packet to the socket. This function cooks output."""
+        text = str(text)    # eliminate any unicode or other snigglets
         text = text.replace(IAC, IAC+IAC)
         text = text.replace(chr(10), chr(13)+chr(10))
         self.writecooked(text)
@@ -704,7 +719,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 
     def handleException(self, exc_type, exc_param, exc_tb):
         "Exception handler (False to abort)"
-        self.writeline(traceback.format_exception_only(exc_type, exc_param)[-1])
+        self.writeline(''.join( traceback.format_exception(exc_type, exc_param, exc_tb) ))
         return True
 
     def handle(self):
@@ -728,7 +743,8 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
         while self.RUNSHELL:
             #if self.DOECHO:
             #    self.write(self.PROMPT)
-            cmdlist = [item.strip() for item in self.readline(prompt=self.PROMPT).split()]
+            self.raw_input = self.readline(prompt=self.PROMPT).strip()
+            cmdlist = [item.strip() for item in self.raw_input.split()]
             idx = 0
             while idx < (len(cmdlist) - 1):
                 if cmdlist[idx][0] in ["'", '"']:
@@ -744,12 +760,13 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
                     try:
                         self.COMMANDS[cmd](params)
                     except:
+                        self.logging.exception('Error calling %s.' % cmd)
                         (t, p, tb) = sys.exc_info()
                         if self.handleException(t, p, tb):
                             break
                 else:
                     self.write("Unknown command '%s'\n" % cmd)
-        logging.debug("Exiting handler")
+        self.logging.debug("Exiting handler")
 
 
 
@@ -803,8 +820,10 @@ if __name__ == '__main__':
             '''
             self.writeline( self.TERM )
         cmdTERM.hidden = True
-            
+    
+    import logging
     logging.getLogger('').setLevel(logging.DEBUG)
+    TestTelnetHandler.logging = logging
     
     TELNET_PORT_BINDING = 8023
     TELNET_IP_BINDING = '' #all

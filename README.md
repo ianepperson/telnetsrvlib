@@ -63,7 +63,8 @@ To communicate with the client, use:
  * self.writemessage( TEXT ) - for clean, asynchronous writing
  * self.readline( prompt=TEXT )
 
-You can check the connected terminal type via self.TERM
+You can check the connected terminal type via self.TERM.
+If you need to access the last raw text input, inspect self.raw_input
 
 To create an alias for the command, set the method's member 'aliases' to a list:
  * cmdECHO.aliases = ['COPY']
