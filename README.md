@@ -143,6 +143,7 @@ To hide the command from the help text output, set its 'hidden' member to True:
             except ValueError:
                 self.writeline( "Need both a time and a message" )
                 return
+            self.writeline("Waiting %d seconds...", time)
             gevent.spawn_later(time, self.writemessage, message)
     
     

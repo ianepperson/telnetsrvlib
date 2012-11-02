@@ -645,8 +645,9 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
                 method = self.COMMANDS[cmd]
                 doc = method.__doc__.split("\n")
                 docp = doc[0].strip()
-                docl = '\n'.join(doc[2:]).replace("\n\t\t", " ").replace("\t", "").strip()
-                if len(docl) < 4:
+                docl = '\n'.join( [l.strip() for l in doc[2:]] )
+                # docl = '\n'.join(doc[2:]).replace("\n\t\t", " ").replace("\t", "").strip()
+                if not docl.strip():  # If there isn't anything here, use line 1
                     docl = doc[1].strip()
                 self.writeline(
                     "%s %s\n\n%s" % (
@@ -768,7 +769,6 @@ if __name__ == '__main__':
                     else:
                         line = line + c
                 self.writeline(line)
-            gevent.spawn_later(5, self.writemessage, 'This is a late message from debug!')
         
         def cmdTIMER(self, params):
             '''<time> <message>
@@ -776,8 +776,8 @@ if __name__ == '__main__':
             Send a message after a delay.
             <time> is in seconds.
             If <message> is more than one word, quotes are required.
-            example: 
-            > TIMER 5 "hello world!"
+            
+            example: TIMER 5 "hello world!"
             '''
             try:
                 timestr, message = params[:2]
@@ -785,6 +785,7 @@ if __name__ == '__main__':
             except ValueError:
                 self.writeline( "Need both a time and a message" )
                 return
+            self.writeline("Waiting %d seconds..." % time)
             gevent.spawn_later(time, self.writemessage, message)
                 
         def cmdECHO(self, params):
