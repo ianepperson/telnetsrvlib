@@ -42,7 +42,7 @@ You can check the connected terminal type via self.TERM
 To create an alias for the command, set the method's member 'aliases' to a list:
  * cmdECHO.aliases = ['COPY']
  
-To hide the command from the help text output, set it's 'hidden' member to True:
+To hide the command from the help text output, set its 'hidden' member to True:
  * cmdECHO.hidden = True
 
 # Commonly Overridden Items #
