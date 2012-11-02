@@ -13,24 +13,48 @@ semaphores reading and writing - as well as a few sleeps sprinkled here and ther
 
 Added a class function to make it easy to use with a gevent StreamServer:
 
-> server = gevent.server.StreamServer((TELNET_IP_BINDING, TELNET_PORT_BINDING), TelnetHandler.streamserver_handle)
-> server.serve_forever()
+    server = gevent.server.StreamServer((TELNET_IP_BINDING, TELNET_PORT_BINDING), TelnetHandler.streamserver_handle)
+    server.serve_forever()
 
 
 # To Use #
 
-Import the TelnetHandler, then subclass it to add your own commands.  Your command
-will be a class method that starts with cmd and is followed by your command in all caps.
-> def cmdECHO(self, params):
+Import the TelnetHandler, then subclass it to add your own commands as specially named methods.  
+Your command method name must with "cmd" and be followed by your command name in all caps.
+    def cmdECHO(self, params):
 
-The params is a list containing any additional parameters passed to your command.
+The params is a list containing any additional parameters passed to your command.  The user
+input is split(), strip()'ed then any quoted parameters are join()'ed and the quotes are stripped.
+> Telnet Server> echo 1  "2    3"
 
-The docstring is used for generating the console help information, and must be formatted
+params == ['1', '2 3']
+
+The command's docstring is used for generating the console help information, and must be formatted
 with at least 3 lines:
 
  * Line 0:  Command paramater(s) if any. (Can be blank line)
  * Line 1:  Short descriptive text. (Mandatory)
  * Line 2+: Long descriptive text. (Can be blank line)
+
+    def cmdECHO(self, params):
+        '''<text to echo>
+        Echo text back to the console.
+        This function doesn't really do much    
+        '''
+        pass
+
+> Telnet Server> help
+> ? [<command>] - Display help
+> BYE - Exit the command shell
+> DEBUG - Display some debugging data
+> ECHO <text to echo> - Echo text back to the console.
+...
+> Telnet Server> help echo
+> ECHO <text to echo>
+> 
+> Echo text back to the console.
+> This function doesn't really do much
+
 
 To write to the console output, use:
  
@@ -45,11 +69,12 @@ To create an alias for the command, set the method's member 'aliases' to a list:
 To hide the command from the help text output, set its 'hidden' member to True:
  * cmdECHO.hidden = True
 
-# Commonly Overridden Items #
+
+# Class Members to Override #
 
 
- * logger
-    * Default: logger
+ * logging
+    * Default: logging
 
  * PROMPT
     * Default: "Telnet Server> "
@@ -82,7 +107,8 @@ To hide the command from the help text output, set its 'hidden' member to True:
 
 
 # Example #
-
+    import logging as my_special_logger
+    
     import gevent.server
     from telnetsrvlib_green import TelnetHandler
      
