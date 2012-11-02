@@ -321,6 +321,13 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
         "End this session"
         self.sock.shutdown(socket.SHUT_RDWR)
         self.greenlet.kill()
+        self.session_end()
+
+    def session_start(self):
+        pass
+        
+    def session_end(self):
+        pass
 
 # ------------------------- Telnet Options Engine --------------------------
 
@@ -715,6 +722,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
                 return
         if self.DOECHO:
             self.writeline(self.WELCOME)
+        self.session_start()
         while self.RUNSHELL:
             if self.DOECHO:
                 self.write(self.PROMPT)

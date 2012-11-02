@@ -59,6 +59,12 @@ To hide the command from the help text output, set it's 'hidden' member to True:
      after the username/password is accepted, 
      if configured.
     * Default: "You have connected to the telnet server."
+ 
+ * session_start(self)
+    * Called after the WELCOME is displayed.
+    
+ * session_end(self)
+    * Called after the console is disconnected.
      
  * authCallback(self, username, password) 
     * Reference to authentication function. If
