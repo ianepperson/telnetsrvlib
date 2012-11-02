@@ -13,15 +13,15 @@ semaphores reading and writing - as well as a few sleeps sprinkled here and ther
 
 Added a class function to make it easy to use with a gevent StreamServer:
 
->>> server = gevent.server.StreamServer((TELNET_IP_BINDING, TELNET_PORT_BINDING), TelnetHandler.streamserver_handle)
->>> server.serve_forever()
+> server = gevent.server.StreamServer((TELNET_IP_BINDING, TELNET_PORT_BINDING), TelnetHandler.streamserver_handle)
+> server.serve_forever()
 
 
 # To Use #
 
 Import the TelnetHandler, then subclass it to add your own commands.  Your command
 will be a class method that starts with cmd and is followed by your command in all caps.
->>> def cmdECHO(self, params):
+> def cmdECHO(self, params):
 
 The params is a list containing any additional parameters passed to your command.
 
@@ -72,9 +72,9 @@ You can check the connected terminal type via self.TERM
 
 # Example #
 
-from telnetsrvlib-green import TelnetHandler
-
-class MyTelnetHandler(TelnetHandler):
+ from telnetsrvlib-green import TelnetHandler
+ 
+ class MyTelnetHandler(TelnetHandler):
     PROMPT = "MyTelnet> "
     WELCOME = "Welcome to my server."
     logging = my_special_logger
