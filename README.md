@@ -6,7 +6,7 @@ Telnet server using gevent
 Copied from http://pytelnetsrvlib.sourceforge.net/
 Licensed under the LGPL, as per the SourceForge notes.
 
-telnetsrvlib-green requires gevent to function.
+telnetsrvlib_green requires gevent to function.
 
 The original telnetsrvlib uses a separate thread to process the input buffer and
 semaphores reading and writing - as well as a few sleeps sprinkled here and there.
@@ -78,7 +78,7 @@ To hide the command from the help text output, set it's 'hidden' member to True:
 # Example #
 
     import gevent.server
-    from telnetsrvlib-green import TelnetHandler
+    from telnetsrvlib_green import TelnetHandler
      
     class MyTelnetHandler(TelnetHandler):
         PROMPT = "MyTelnet> "
