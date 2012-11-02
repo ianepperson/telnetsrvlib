@@ -27,7 +27,7 @@ The params is a list containing any additional parameters passed to your command
 input is split(), strip()'ed then any quoted parameters are join()'ed and the quotes are stripped.
 > Telnet Server> echo 1  "2    3"
 
-params == ['1', '2 3']
+    params == ['1', '2 3']
 
 The command's docstring is used for generating the console help information, and must be formatted
 with at least 3 lines:
@@ -39,7 +39,7 @@ with at least 3 lines:
     def cmdECHO(self, params):
         '''<text to echo>
         Echo text back to the console.
-        This function doesn't really do much    
+        This function doesn't really do much
         '''
         pass
 
