@@ -44,34 +44,35 @@ You can check the connected terminal type via self.TERM
 
 
  * logger
-    ** Default: logger
+    * Default: logger
 
  * PROMPT
-    ** Default: "Telnet Server> "
+    * Default: "Telnet Server> "
      
  * WELCOME
-    ** Displayed after a successful connection, 
+    * Displayed after a successful connection, 
      after the username/password is accepted, 
      if configured.
-    ** Default: "You have connected to the telnet server."
+    * Default: "You have connected to the telnet server."
      
  * authCallback(self, username, password) 
-    ** Reference to authentication function. If
+    * Reference to authentication function. If
      there is none, no un/pw is requested. Should
      raise an exception if authentication fails
-    ** Default: None
+    * Default: None
 
  * authNeedUser 
-    ** Should a username be requested?
-    ** Default: False
+    * Should a username be requested?
+    * Default: False
 
  * authNeedPass
-    ** Should a password be requested?
-    ** Default: False
+    * Should a password be requested?
+    * Default: False
 
 
 # Example #
 
+    import gevent.server
     from telnetsrvlib-green import TelnetHandler
      
     class MyTelnetHandler(TelnetHandler):
@@ -85,5 +86,7 @@ You can check the connected terminal type via self.TERM
             
             '''
             self.writeline( ' '.join(params) )
-        
+    
+    server = gevent.server.StreamServer(("", 8023), TelnetHandler.streamserver_handle)
+    server.server_forever()
 
