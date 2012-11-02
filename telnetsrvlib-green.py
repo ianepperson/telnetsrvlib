@@ -652,6 +652,8 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
         keys.sort()
         for cmd in keys:
             method = self.COMMANDS[cmd]
+            if getattr(method, 'hidden', False):
+                continue
             doc = method.__doc__.split("\n")
             docp = doc[0].strip()
             docs = doc[1].strip()
@@ -764,6 +766,15 @@ if __name__ == '__main__':
             
             '''
             self.writeline( ' '.join(params) )
+        cmdECHO.aliases = ['REPEAT']
+        
+        def cmdTERM(self, params):
+            '''
+            Hidden command to print the current TERM
+            
+            '''
+            self.writeline( self.TERM )
+        cmdTERM.hidden = True
             
     logging.getLogger('').setLevel(logging.DEBUG)
     
