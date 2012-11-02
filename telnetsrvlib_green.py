@@ -24,7 +24,7 @@ Various settings can affect the operation of the server:
 
 import SocketServer
 import socket
-import gevent, gevent.coros, gevent.server
+import gevent, gevent.queue, gevent.server
 import sys
 import traceback
 import curses.ascii
@@ -251,14 +251,13 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
         self.COMMANDS = {}
         self.sock = None    # TCP socket
         self.rawq = ''      # Raw input string
-        self.cookedq = []   # This is the cooked input stream (list of charcodes)
+        #self.cookedq = []   # This is the cooked input stream (list of charcodes)
+        self.cookedq = gevent.queue.Queue()
         self.sbdataq = ''   # Sub-Neg string
         self.eof = 0        # Has EOF been reached?
         self.iacseq = ''    # Buffer for IAC sequence.
         self.sb = 0     # Flag for SB and SE sequence.
         self.history = []   # Command history
-        self.IQUEUELOCK = gevent.coros.Semaphore()
-        self.OQUEUELOCK = gevent.coros.Semaphore()
         self.RUNSHELL = True
         # A little magic - Everything called cmdXXX is a command
         for k in dir(self):
@@ -309,12 +308,8 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
             self.sendcommand(self.WILLACK[k], k)
         
         self.greenlet = gevent.spawn(self.inputcooker)
-        #self.thread_ic = threading.Thread(target=self.inputcooker)
-        #self.thread_ic.setDaemon(True)
-        #self.thread_ic.start()
         # Sleep for 0.5 second to allow options negotiation
         gevent.sleep(0.5)
-        #time.sleep(0.5)
 
 
     def finish(self):
@@ -404,15 +399,28 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
         """Echo a recieved character, move cursor etc..."""
         if echo == True or (echo == None and self.DOECHO == True):
             self.write(char)
-
-    def readline(self, echo=None):
+    
+    _current_line = ''
+    _current_prompt = ''
+    
+    def readline(self, echo=None, prompt=''):
         """Return a line of text, including the terminating LF
            If echo is true always echo, if echo is false never echo
            If echo is None follow the negotiated setting.
         """
+        
         line = []
         insptr = 0
         histptr = len(self.history)
+            
+        if self.DOECHO:
+            self.write(prompt)
+            self._current_prompt = prompt
+        else:
+            self._current_prompt = ''
+        
+        self._current_line = ''
+        
         while True:
             c = self.getc(block=True)
             if c == theNULL:
@@ -488,25 +496,26 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
                 self._readline_echo(c, echo)
             line[insptr:insptr] = c
             insptr = insptr + len(c)
+            if echo==True or (echo==None and self.DOECHO):
+                self._current_line = line
 
     def getc(self, block=True):
         """Return one character from the input queue"""
-        if not block:
-            if not len(self.cookedq):
-                return ''
-        while not len(self.cookedq):
-            gevent.sleep(0.05)
-        self.IQUEUELOCK.acquire()
-        ret = self.cookedq[0]
-        self.cookedq = self.cookedq[1:]
-        self.IQUEUELOCK.release()
-        return ret
+        try:
+            return self.cookedq.get(block)
+        except gevent.queue.Empty:
+            return ''
 
 # --------------------------- Output Functions -----------------------------
 
     def writeline(self, text):
         """Send a packet with line ending."""
         self.write(text+chr(10))
+
+    def writemessage(self, text):
+        """Write a message, then reconstruct the prompt and entered text."""
+        self.write(chr(10)+text+chr(10))
+        self.write(self._current_prompt+''.join(self._current_line))
 
     def write(self, text):
         """Send a packet to the socket. This function cooks output."""
@@ -516,9 +525,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 
     def writecooked(self, text):
         """Put data directly into the output queue (bypass output cooker)"""
-        self.OQUEUELOCK.acquire()
         self.sock.sendall(text)
-        self.OQUEUELOCK.release()
 
 # ------------------------------- Input Cooker -----------------------------
 
@@ -550,13 +557,11 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
         if self.sb:
             self.sbdataq = self.sbdataq + char
         else:
-            self.IQUEUELOCK.acquire()
             if type(char) in [type(()), type([]), type("")]:
                 for v in char:
-                    self.cookedq.append(v)
+                    self.cookedq.put(v)
             else:
-                self.cookedq.append(char)
-            self.IQUEUELOCK.release()
+                self.cookedq.put(char)
 
     def inputcooker(self):
         """Input Cooker - Transfer from raw queue to cooked queue.
@@ -707,13 +712,9 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
         password = None
         if self.authCallback:
             if self.authNeedUser:
-                if self.DOECHO:
-                    self.write("Username: ")
-                username = self.readline()
+                username = self.readline(prompt="Username: ")
             if self.authNeedPass:
-                if self.DOECHO:
-                    self.write("Password: ")
-                password = self.readline(echo=False)
+                password = self.readline(echo=False, prompt="Password: ")
                 if self.DOECHO:
                     self.write("\n")
             try:
@@ -724,9 +725,9 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
             self.writeline(self.WELCOME)
         self.session_start()
         while self.RUNSHELL:
-            if self.DOECHO:
-                self.write(self.PROMPT)
-            cmdlist = [item.strip() for item in self.readline().split()]
+            #if self.DOECHO:
+            #    self.write(self.PROMPT)
+            cmdlist = [item.strip() for item in self.readline(prompt=self.PROMPT).split()]
             idx = 0
             while idx < (len(cmdlist) - 1):
                 if cmdlist[idx][0] in ["'", '"']:
@@ -757,7 +758,7 @@ if __name__ == '__main__':
     class TestTelnetHandler(TelnetHandler):
         def cmdDEBUG(self, params):
             """
-            Display some debugging data
+            Display some debugging data, wait 5 seconds, then display a message
             """
             for (v,k) in self.ESCSEQ.items():
                 line = '%-10s : ' % (self.KEYS[k], )
@@ -767,6 +768,24 @@ if __name__ == '__main__':
                     else:
                         line = line + c
                 self.writeline(line)
+            gevent.spawn_later(5, self.writemessage, 'This is a late message from debug!')
+        
+        def cmdTIMER(self, params):
+            '''<time> <message>
+            In <time> seconds, display <message>.
+            Send a message after a delay.
+            <time> is in seconds.
+            If <message> is more than one word, quotes are required.
+            example: 
+            > TIMER 5 "hello world!"
+            '''
+            try:
+                timestr, message = params[:2]
+                time = int(timestr)
+            except ValueError:
+                self.writeline( "Need both a time and a message" )
+                return
+            gevent.spawn_later(time, self.writemessage, message)
                 
         def cmdECHO(self, params):
             '''<text to echo>

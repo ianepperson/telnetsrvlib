@@ -56,10 +56,12 @@ with at least 3 lines:
 > This function doesn't really do much
 
 
-To write to the console output, use:
+To communicate with the client, use:
  
  * self.writeline( TEXT ) 
  * self.write( TEXT )
+ * self.writemessage( TEXT ) - for clean, asynchronous writing
+ * self.readline( prompt=TEXT )
 
 You can check the connected terminal type via self.TERM
 
@@ -125,6 +127,23 @@ To hide the command from the help text output, set its 'hidden' member to True:
             self.writeline( ' '.join(params) )
         
         cmdECHO.aliases = ['COPY', 'REPEAT']
+        
+        def cmdTIMER(self, params):
+            '''<time> <message>
+            In <time> seconds, display <message>.
+            Send a message after a delay.
+            <time> is in seconds.
+            If <message> is more than one word, quotes are required.
+            example: 
+            > TIMER 5 "hello world!"
+            '''
+            try:
+                timestr, message = params[:2]
+                time = int(timestr)
+            except ValueError:
+                self.writeline( "Need both a time and a message" )
+                return
+            gevent.spawn_later(time, self.writemessage, message)
     
     
     server = gevent.server.StreamServer(("", 8023), TelnetHandler.streamserver_handle)
