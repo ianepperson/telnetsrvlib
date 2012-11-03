@@ -487,7 +487,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
             elif c == chr(10):
                 self._readline_echo(c, echo)
                 if echo == True or (echo == None and self.DOECHO == True):
-                    self.history.append(line)
+                    self.history.append(''.join(line))
                 return ''.join(line)
             elif c == curses.KEY_BACKSPACE or c == chr(127) or c == chr(8):
                 if insptr > 0:
