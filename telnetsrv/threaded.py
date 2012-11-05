@@ -67,12 +67,21 @@ class TelnetHandler(TelnetHandlerBase):
         self.IQUEUELOCK.release()
 
 
-    # -- Threaded output handling function --
+    # -- Threaded output handling functions --
+
+    def writemessage(self, text):
+        """Put data in output queue, rebuild the prompt and entered data"""
+        # Need to grab the input queue lock to ensure the entered data doesn't change
+        # before we're done rebuilding it.
+        self.IQUEUELOCK.acquire()
+        TelnetHandlerBase.writemessage(self, text)
+        self.IQUEUELOCK.release()
     
     def writecooked(self, text):
         """Put data directly into the output queue"""
+        # Ensure this is the only thread writing
         self.OQUEUELOCK.acquire()
-        self.sock.sendall(text)
+        TelnetHandlerBase.writecooked(self, text)
         self.OQUEUELOCK.release()
 
 
