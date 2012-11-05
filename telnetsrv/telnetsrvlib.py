@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # license: LGPL
 """TELNET server class
 
@@ -24,7 +23,6 @@ Various settings can affect the operation of the server:
 
 import SocketServer
 import socket
-import gevent, gevent.queue, gevent.server
 import sys
 import traceback
 import curses.ascii
@@ -34,8 +32,6 @@ import curses
 import re
 #if not hasattr(socket, 'SHUT_RDWR'):
 #    socket.SHUT_RDWR = 2
-
-__all__ = ["TelnetHandler", "TelnetCLIHandler"]
 
 IAC  = chr(255) # "Interpret As Command"
 DONT = chr(254)
@@ -191,8 +187,15 @@ class dummylogger(object):
         pass
 
 
-class TelnetHandler(SocketServer.BaseRequestHandler):
+class TelnetHandlerBase(SocketServer.BaseRequestHandler):
     "A telnet server based on the client in telnetlib"
+    
+    # Several methods are not fully defined in this class, and are
+    # very specific to either a threaded or green implementation.
+    # These methods are noted as #abstracmethods to ensure they are
+    # properly made concrete.  
+    # (abc doesn't like the BaseRequestHandler - sigh)
+    #__metaclass__ = ABCMeta    
     
     # Override as necessary
     logging = dummylogger()
@@ -265,7 +268,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
         self.sock = None    # TCP socket
         self.rawq = ''      # Raw input string
         #self.cookedq = []   # This is the cooked input stream (list of charcodes)
-        self.cookedq = gevent.queue.Queue()
+        #    put in green class (before): self.cookedq = gevent.queue.Queue()
         self.sbdataq = ''   # Sub-Neg string
         self.eof = 0        # Has EOF been reached?
         self.iacseq = ''    # Buffer for IAC sequence.
@@ -320,16 +323,11 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
         for k in self.WILLACK.keys():
             self.sendcommand(self.WILLACK[k], k)
         
-        self.greenlet = gevent.spawn(self.inputcooker)
-        # Sleep for 0.5 second to allow options negotiation
-        gevent.sleep(0.5)
-
 
     def finish(self):
         "End this session"
         self.logging.debug("Session disconnected.")
         self.sock.shutdown(socket.SHUT_RDWR)
-        self.greenlet.kill()
         self.session_end()
 
     def session_start(self):
@@ -512,22 +510,29 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
             insptr = insptr + len(c)
             if echo==True or (echo==None and self.DOECHO):
                 self._current_line = line
-
+    
+    #abstractmethod
     def getc(self, block=True):
         """Return one character from the input queue"""
-        try:
-            return self.cookedq.get(block)
-        except gevent.queue.Empty:
-            return ''
+        # This is very different between green threads and real threads.
+        raise NotImplementedError("Please Implement the getc method")
 
 # --------------------------- Output Functions -----------------------------
+
+    def writeresponse(self, text):
+        """Write out any valid responses.  Easy to override with ANSI codes."""
+        self.writeline(text)
+        
+    def writeerror(self, text):
+        """Write out any error messages.  Easy to override with ANSI codes."""
+        self.writeline(text)
 
     def writeline(self, text):
         """Send a packet with line ending."""
         self.write(text+chr(10))
 
     def writemessage(self, text):
-        """Write a message, then reconstruct the prompt and entered text."""
+        """Write out an asynchronous message, then reconstruct the prompt and entered text."""
         self.write(chr(10)+text+chr(10))
         self.write(self._current_prompt+''.join(self._current_line))
 
@@ -543,7 +548,6 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
         self.sock.sendall(text)
 
 # ------------------------------- Input Cooker -----------------------------
-
     def _inputcooker_getc(self, block=True):
         """Get one character from the raw queue. Optionally blocking.
         Raise EOFError on end of stream. SHOULD ONLY BE CALLED FROM THE
@@ -553,7 +557,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
             self.rawq = self.rawq[1:]
             return ret
         if not block:
-            if gevent.select.select([self.sock.fileno()], [], [], 0) == ([], [], []):
+            if not self._inputcooker_socket_ready():
                 return ''
         ret = self.sock.recv(20)
         self.eof = not(ret)
@@ -562,21 +566,29 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
             raise EOFError
         return self._inputcooker_getc(block)
 
+    #abstractmethod
+    def inputcooker_socket_ready(self):
+        """Indicate that the socket is ready to be read"""
+        # Either use a green select or a real select
+        #return select([self.sock.fileno()], [], [], 0) != ([], [], [])
+        raise NotImplementedError("Please Implement the inputcooker_socket_ready method")
+
     def _inputcooker_ungetc(self, char):
         """Put characters back onto the head of the rawq. SHOULD ONLY
         BE CALLED FROM THE INPUT COOKER."""
         self.rawq = char + self.rawq
 
     def _inputcooker_store(self, char):
-        """Put the cooked data in the correct queue (no locking needed)"""
+        """Put the cooked data in the correct queue"""
         if self.sb:
             self.sbdataq = self.sbdataq + char
         else:
-            if type(char) in [type(()), type([]), type("")]:
-                for v in char:
-                    self.cookedq.put(v)
-            else:
-                self.cookedq.put(char)
+            self.inputcooker_store_queue(char)
+
+    #abstractmethod
+    def inputcooker_store_queue(self, char):
+        """Put the cooked data in the output queue (possible locking needed)"""
+        raise NotImplementedError("Please Implement the inputcooker_store_queue method")
 
     def inputcooker(self):
         """Input Cooker - Transfer from raw queue to cooked queue.
@@ -741,8 +753,6 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
             self.writeline(self.WELCOME)
         self.session_start()
         while self.RUNSHELL:
-            #if self.DOECHO:
-            #    self.write(self.PROMPT)
             self.raw_input = self.readline(prompt=self.PROMPT).strip()
             cmdlist = [item.strip() for item in self.raw_input.split()]
             idx = 0
@@ -765,73 +775,9 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
                         if self.handleException(t, p, tb):
                             break
                 else:
-                    self.write("Unknown command '%s'\n" % cmd)
+                    self.writeerror("Unknown command '%s'" % cmd)
         self.logging.debug("Exiting handler")
 
 
 
-if __name__ == '__main__':
-    '''Testing - Run a server'''
-
-    class TestTelnetHandler(TelnetHandler):
-        def cmdDEBUG(self, params):
-            """
-            Display some debugging data, wait 5 seconds, then display a message
-            """
-            for (v,k) in self.ESCSEQ.items():
-                line = '%-10s : ' % (self.KEYS[k], )
-                for c in v:
-                    if ord(c)<32 or ord(c)>126:
-                        line = line + curses.ascii.unctrl(c)
-                    else:
-                        line = line + c
-                self.writeline(line)
-        
-        def cmdTIMER(self, params):
-            '''<time> <message>
-            In <time> seconds, display <message>.
-            Send a message after a delay.
-            <time> is in seconds.
-            If <message> is more than one word, quotes are required.
-            
-            example: TIMER 5 "hello world!"
-            '''
-            try:
-                timestr, message = params[:2]
-                time = int(timestr)
-            except ValueError:
-                self.writeline( "Need both a time and a message" )
-                return
-            self.writeline("Waiting %d seconds..." % time)
-            gevent.spawn_later(time, self.writemessage, message)
-                
-        def cmdECHO(self, params):
-            '''<text to echo>
-            Echo text back to the console.
-            
-            '''
-            self.writeline( ' '.join(params) )
-        cmdECHO.aliases = ['REPEAT']
-        
-        def cmdTERM(self, params):
-            '''
-            Hidden command to print the current TERM
-            
-            '''
-            self.writeline( self.TERM )
-        cmdTERM.hidden = True
-    
-    import logging
-    logging.getLogger('').setLevel(logging.DEBUG)
-    TestTelnetHandler.logging = logging
-    
-    TELNET_PORT_BINDING = 8023
-    TELNET_IP_BINDING = '' #all
-
-    server = gevent.server.StreamServer((TELNET_IP_BINDING, TELNET_PORT_BINDING), TestTelnetHandler.streamserver_handle)
-    logging.info("Starting server.  (Ctrl-C to stop)")
-    server.serve_forever()
-
-
 # vim: set syntax=python ai showmatch:
-
