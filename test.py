@@ -30,10 +30,37 @@ if SERVERTYPE == 'threaded':
 TelnetHandler.logging = logging
 
 
+# Global variable to track the number of connections.
+connection_count = 0
+# Note that this can't live in TestTelnetHandler because
+# the instance is re-created for each connection.
+# You might get clever and store it in the handler class itself,
+# but it's probably best to put stuff like this in a 
+# different object and call that from your customized
+# TelnetHandler class.
+
+
 class TestTelnetHandler(TelnetHandler):
+    WELCOME = 'You have connected to a test telnet server.'
+    PROMPT = "Test> "
+
+    def session_start(self):
+        self.writeline('This server is running %s.' % SERVERTYPE)
+        global connection_count
+        connection_count += 1
+        self.writeline('You are connection #%d' % connection_count)
+        
+    def writeerror(self, text):
+        '''Add a splash of color using ANSI
+        Render error text in red.
+        see http://en.wikipedia.org/wiki/ANSI_escape_code'''
+        TelnetHandler.writeerror(self, "\x1b[91m%s\x1b[0m" % text )
+
+    # -- Commands --
+
     def cmdDEBUG(self, params):
         """
-        Display some debugging data, wait 5 seconds, then display a message
+        Display some debugging data
         """
         for (v,k) in self.ESCSEQ.items():
             line = '%-10s : ' % (self.KEYS[k], )
@@ -43,6 +70,7 @@ class TestTelnetHandler(TelnetHandler):
                 else:
                     line = line + c
             self.writeresponse(line)
+
     
     def cmdTIMER(self, params):
         '''<time> <message>
@@ -65,15 +93,11 @@ class TestTelnetHandler(TelnetHandler):
             gevent.spawn_later(delay, self.writemessage, message)
 
         if SERVERTYPE == 'threaded':
-            def timer_function(self, delay, message):
-                time.sleep(delay)
-                self.writemessage(message)
-            
-            timer_thread = threading.Thread(target=timer_function, args=(self,delay,message,))
-            timer_thread.start()
+            timer = threading.Timer(delay, self.writemessage, args=[message])
+            timer.start()
         
-        # A real server would deal with this thread when the console closed
-        # by overriding the session_end method to ensure lingering threads don't
+        # A real server should deal with this thread when the console closed
+        # by defining a session_end method to ensure lingering threads don't
         # eat up resources and/or throw errors at strange times.
 
     
@@ -84,6 +108,7 @@ class TestTelnetHandler(TelnetHandler):
         '''
         self.writeresponse( ' '.join(params) )
     cmdECHO.aliases = ['REPEAT']
+
     
     def cmdTERM(self, params):
         '''
