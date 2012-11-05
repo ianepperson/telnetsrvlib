@@ -14,7 +14,7 @@ class TelnetHandler(TelnetHandlerBase):
         TelnetHandlerBase.__init__(self, request, client_address, server)
         
     def setup(self):
-        '''Called after institution'''
+        '''Called after instantiation'''
         TelnetHandlerBase.setup(self)
         # Spawn a greenlet to handle socket input
         self.greenlet_ic = gevent.spawn(self.inputcooker)
