@@ -56,7 +56,9 @@ contained in a list.  The user input is split(), strip()'ed then any quoted para
 are join()'ed and the quotes are stripped.  If you need to access the raw text input, 
 inspect the self.raw_input variable.
 
-> Telnet Server> echo 1  "2    3"
+```
+Telnet Server> echo 1  "2    3"
+```
 
 ```python
     params == ['1', '2 3']
@@ -80,19 +82,22 @@ with at least 3 lines:
         pass
 ```
 
-> Telnet Server> help
-> ? [<command>] - Display help
-> BYE - Exit the command shell
-> ECHO <text to echo> - Echo text back to the console.
-
+```
+Telnet Server> help
+? [<command>] - Display help
+BYE - Exit the command shell
+ECHO <text to echo> - Echo text back to the console.
 ...
+```
 
-> Telnet Server> help echo
-> ECHO <text to echo>
-> 
-> This command simply echos the provided text
-> back to the console.
+```
+Telnet Server> help echo
+ECHO <text to echo>
 
+This command simply echos the provided text
+back to the console.
+Telnet Server>
+```
 
 To create an alias for the new command, set the method's member 'aliases' to a list:
  * cmdECHO.aliases = ['COPY']
@@ -243,6 +248,8 @@ server.server_forever()
 ```
 
 # Longer Example #
+
+* test.py
 
 ```python
 import sys
