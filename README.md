@@ -42,10 +42,10 @@ class MyHandler(TelnetHandler):
     ...
 ```
 
-## Add Commands ##
+### Add Commands ###
 
 Commands are defined by creating specially named methods in your handler class.
-Your command method name must with "cmd" and be followed by your command name in all caps.
+Your command method name must start with "cmd" and be followed by your command name in all caps.
 
 ```python
 def cmdECHO(self, params):
@@ -122,7 +122,7 @@ interrupting any current input.  It is ideal for asynchronous messages
 that aren't necessarily generated from the direct user input.
 
 
-## Set Up Handler Options ##
+### Set Up Handler Options ###
 
 Override these class members to change the handler's behavior.
 
@@ -158,7 +158,7 @@ Override these class members to change the handler's behavior.
     * Default: False
 
 
-## Modify Handler Display ##
+### Modify Handler Display ###
 
 If you want to change how the output is displayed, override one or all of the
 write classes.  Make sure you call back to the base class when doing so.
@@ -177,8 +177,9 @@ See http://en.wikipedia.org/wiki/ANSI_escape_code
 
 # Use It With a Server #
 
-An instance of the TelnetHandler class is created for each new connection.  It must
-be called from either the gevent StreamServer (for the green version) or from a
+Now you have a shiny new handler class, but it doesn't serve itself - it must be called
+from an appropriate server.  An instance of the TelnetHandler class is created for each 
+new connection.  It can be called from either the gevent StreamServer (for the green version) or from a
 SocketServer.TCPServer instance (for the threaded version).
 
 Threaded:
