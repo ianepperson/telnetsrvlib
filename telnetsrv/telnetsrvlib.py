@@ -1,4 +1,5 @@
 # license: LGPL
+# For distribution, see the COPYING.txt file that accompanies this file.
 """TELNET server class
 
 Based on the telnet client in telnetlib.py
@@ -267,8 +268,6 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
         self.COMMANDS = {}
         self.sock = None    # TCP socket
         self.rawq = ''      # Raw input string
-        #self.cookedq = []   # This is the cooked input stream (list of charcodes)
-        #    put in green class (before): self.cookedq = gevent.queue.Queue()
         self.sbdataq = ''   # Sub-Neg string
         self.eof = 0        # Has EOF been reached?
         self.iacseq = ''    # Buffer for IAC sequence.
@@ -375,21 +374,15 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
                 self.DOOPTS[opt] = None
             if (((cmd == DO) and (self.DOOPTS[opt] != True))
             or ((cmd == DONT) and (self.DOOPTS[opt] != False))):
-#               self.logging.debug("Sending %s %s" % (cmdtxt, opttxt, ))
                 self.DOOPTS[opt] = (cmd == DO)
                 self.writecooked(IAC + cmd + opt)
-#           else:
-#               self.logging.debug("Not resending %s %s" % (cmdtxt, opttxt, ))
         elif cmd in [WILL, WONT]:
             if not self.WILLOPTS.has_key(opt):
                 self.WILLOPTS[opt] = ''
             if (((cmd == WILL) and (self.WILLOPTS[opt] != True))
             or ((cmd == WONT) and (self.WILLOPTS[opt] != False))):
-#               self.logging.debug("Sending %s %s" % (cmdtxt, opttxt, ))
                 self.WILLOPTS[opt] = (cmd == WILL)
                 self.writecooked(IAC + cmd + opt)
-#           else:
-#               self.logging.debug("Not resending %s %s" % (cmdtxt, opttxt, ))
         else:
             self.writecooked(IAC + cmd)
 
@@ -673,7 +666,6 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
                 doc = method.__doc__.split("\n")
                 docp = doc[0].strip()
                 docl = '\n'.join( [l.strip() for l in doc[2:]] )
-                # docl = '\n'.join(doc[2:]).replace("\n\t\t", " ").replace("\t", "").strip()
                 if not docl.strip():  # If there isn't anything here, use line 1
                     docl = doc[1].strip()
                 self.writeline(

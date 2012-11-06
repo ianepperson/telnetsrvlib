@@ -1,19 +1,39 @@
+#!/usr/bin/python
+
+import sys
 import logging
+
 logging.getLogger('').setLevel(logging.DEBUG)
 
-TELNET_PORT_BINDING = 8023
 TELNET_IP_BINDING = '' #all
 
+# Obtain the port to use from the command line:
+try:
+    TELNET_PORT_BINDING = int(sys.argv[1])
+except:
+    print "Usage:  %s <port> [green]" % sys.argv[0]
+    print "  <port> is the port to bind to."
+    print '  "green" tells the server to use gevent.'
+    sys.exit(1)
 
-#SERVERTYPE = 'green'
-SERVERTYPE = 'threaded'
+# Determine the type of server to run: green or threaded
+try:
+    SERVERTYPE = sys.argv[2].lower()
+except:
+    SERVERTYPE = 'threaded'
 
+if not SERVERTYPE in ['green', 'threaded']:
+    print "I didn't understand that server type.  Did you mean to type:"
+    print " > %s %d green" % (sys.argv[0], TELNET_PORT_BINDING)   
+
+
+# To run a green server, import gevent and the green version of telnetsrv.
 if SERVERTYPE == 'green':
     import gevent, gevent.server
     
     from telnetsrv.green import TelnetHandler
 
-
+# To run a threaded server, import threading and other libraries to help out.
 if SERVERTYPE == 'threaded':
     import SocketServer
     import threading
@@ -21,42 +41,82 @@ if SERVERTYPE == 'threaded':
 
     from telnetsrv.threaded import TelnetHandler
     
-    # The SocketServer needs *all to be 0.0.0.0
+    # The SocketServer needs *all IPs* to be 0.0.0.0
     if not TELNET_IP_BINDING:
         TELNET_IP_BINDING = '0.0.0.0'
 
 
-    
 TelnetHandler.logging = logging
 
 
-# Global variable to track the number of connections.
-connection_count = 0
-# Note that this can't live in TestTelnetHandler because
-# the instance is re-created for each connection.
-# You might get clever and store it in the handler class itself,
-# but it's probably best to put stuff like this in a 
-# different object and call that from your customized
-# TelnetHandler class.
+# The TelnetHandler instance is re-created for each connection.
+# Therfore, in order to store data between connections, create
+# a seperate object to deal with any logic that needs to persist
+# after the user logs off.
+# Here is a simple example that just counts the number of connections
+# as well as the number of times this user has connected.
 
+class MyServer(object):
+    '''A simple server class that just keeps track of a connection count.'''
+    def __init__(self):
+        # Var to track the total connections.
+        self.connection_count = 0
+        
+        # Dictionary to track individual connections.
+        self.user_connect = {}
+        
+    def new_connection(self, username):
+        '''Register a new connection by username, return the count of connections.'''
+        self.connection_count += 1
+        try:
+            self.user_connect[username] += 1
+        except:
+            self.user_connect[username] = 1
+        return self.connection_count, self.user_connect[username]
+        
+        
+
+# Subclass TelnetHandler to add our own commands and to call back
+# to myserver.
 
 class TestTelnetHandler(TelnetHandler):
-    WELCOME = 'You have connected to a test telnet server.'
-    PROMPT = "Test> "
+    # Create the instance of the server within the class for easy use
+    myserver = MyServer()
+
+    # -- Override items to customize the server --
+
+    WELCOME = 'You have connected to my test telnet server.'
+    PROMPT = "MyServer> "
+    authNeedUser = True
+    authNeedPass = False
+    
+    def authCallback(self, username, password):
+        '''Called to validate the username/password.'''
+        # We accept everyone here, as long as any name is given!
+        if not username:
+            # complain by raising any exception
+            raise
+        self.username = username
 
     def session_start(self):
+        '''Called after the user successfully logs in.'''
         self.writeline('This server is running %s.' % SERVERTYPE)
-        global connection_count
-        connection_count += 1
-        self.writeline('You are connection #%d' % connection_count)
+        
+        # Tell myserver that we have a new connection, and provide the username.
+        # We get back the login count information.
+        globalcount, usercount = self.myserver.new_connection( self.username )
+        
+        self.writeline('Hello %s!' % self.username)
+        self.writeline('You are connection #%d, you have logged in %s time(s).' % (globalcount, usercount))
         
     def writeerror(self, text):
-        '''Add a splash of color using ANSI
-        Render error text in red.
+        '''Called to write any error information (like a mistyped command).
+        Add a splash of color using ANSI to render the error text in red.
         see http://en.wikipedia.org/wiki/ANSI_escape_code'''
         TelnetHandler.writeerror(self, "\x1b[91m%s\x1b[0m" % text )
 
-    # -- Commands --
+
+    # -- Custom Commands --
 
     def cmdDEBUG(self, params):
         """
@@ -107,6 +167,7 @@ class TestTelnetHandler(TelnetHandler):
         
         '''
         self.writeresponse( ' '.join(params) )
+    # Create an alias for this command
     cmdECHO.aliases = ['REPEAT']
 
     
@@ -116,6 +177,7 @@ class TestTelnetHandler(TelnetHandler):
         
         '''
         self.writeresponse( self.TERM )
+    # Hide this command.  Will not show in the help list.
     cmdTERM.hidden = True
 
 
@@ -132,5 +194,5 @@ if SERVERTYPE == 'threaded':
     server = TelnetServer((TELNET_IP_BINDING, TELNET_PORT_BINDING), TestTelnetHandler)
 
 
-logging.info("Starting %s server.  (Ctrl-C to stop)" % SERVERTYPE)
+logging.info("Starting %s server at port %d.  (Ctrl-C to stop)" % (SERVERTYPE, TELNET_PORT_BINDING) )
 server.serve_forever()
