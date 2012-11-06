@@ -24,7 +24,10 @@ except:
 
 if not SERVERTYPE in ['green', 'threaded']:
     print "I didn't understand that server type.  Did you mean to type:"
-    print " > %s %d green" % (sys.argv[0], TELNET_PORT_BINDING)   
+    print " > %s %d green" % (sys.argv[0], TELNET_PORT_BINDING)
+    print " or"
+    print " > %s %d threaded" % (sys.argv[0], TELNET_PORT_BINDING)
+    sys.exit(1)
 
 
 # To run a green server, import gevent and the green version of telnetsrv.
@@ -195,4 +198,7 @@ if SERVERTYPE == 'threaded':
 
 
 logging.info("Starting %s server at port %d.  (Ctrl-C to stop)" % (SERVERTYPE, TELNET_PORT_BINDING) )
-server.serve_forever()
+try:
+    server.serve_forever()
+except KeyboardInterrupt:
+    logging.info("Server shut down.")
