@@ -178,8 +178,8 @@ See http://en.wikipedia.org/wiki/ANSI_escape_code
 # Use It With a Server #
 
 Now you have a shiny new handler class, but it doesn't serve itself - it must be called
-from an appropriate server.  The server will create n instance of the TelnetHandler class
-for each new connection.  The handler will work with either a gevent StreamServer instance
+from an appropriate server.  The server will create an instance of the TelnetHandler class
+for each new connection.  The handler class will work with either a gevent StreamServer instance
 (for the green version) or with a SocketServer.TCPServer instance (for the threaded version).
 
 Threaded:
@@ -196,7 +196,8 @@ server.serve_forever()
 Green:
 
 The TelnetHandler class includes a streamserver_handle class method to translate the 
-required fields from a StreamServer, allowing use with the gevent StreamServer.
+required fields from a StreamServer, allowing use with the gevent StreamServer (and possibly
+others).
 
 ```python
 import gevent.server

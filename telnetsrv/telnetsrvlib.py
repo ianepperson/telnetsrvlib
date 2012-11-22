@@ -34,6 +34,8 @@ import re
 #if not hasattr(socket, 'SHUT_RDWR'):
 #    socket.SHUT_RDWR = 2
 
+BELL = chr(7)
+
 IAC  = chr(255) # "Interpret As Command"
 DONT = chr(254)
 DO   = chr(253)
@@ -400,18 +402,34 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
 
 # ---------------------------- Input Functions -----------------------------
 
+    def _readline_do_echo(self, echo):
+        """Determine if we should echo or not"""
+        return echo == True or (echo == None and self.DOECHO == True)
+
     def _readline_echo(self, char, echo):
         """Echo a recieved character, move cursor etc..."""
-        if echo == True or (echo == None and self.DOECHO == True):
+        if self._readline_do_echo(echo):
             self.write(char)
+    
+    def _readline_insert(self, char, echo, insptr, line):
+        """Deal properly with inserted chars in a line."""
+        if not self._readline_do_echo(echo):
+            return
+        # Write out the remainder of the line
+        self.write(char + ''.join(line[insptr:]))
+        # Cursor Left to the current insert point
+        char_count = len(line) - insptr
+        self.write(self.CODES['CSRLEFT'] * char_count)
     
     _current_line = ''
     _current_prompt = ''
     
-    def readline(self, echo=None, prompt=''):
+    def readline(self, echo=None, prompt='', use_history=True):
         """Return a line of text, including the terminating LF
            If echo is true always echo, if echo is false never echo
            If echo is None follow the negotiated setting.
+           prompt is the current prompt to write (and rewrite if needed)
+           use_history controls if this current line uses (and adds to) the command history.
         """
         
         line = []
@@ -435,27 +453,30 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
                     insptr = insptr - 1
                     self._readline_echo(self.CODES['CSRLEFT'], echo)
                 else:
-                    self._readline_echo(chr(7), echo)
+                    self._readline_echo(BELL, echo)
                 continue
             elif c == curses.KEY_RIGHT:
                 if insptr < len(line):
                     insptr = insptr + 1
                     self._readline_echo(self.CODES['CSRRIGHT'], echo)
                 else:
-                    self._readline_echo(chr(7), echo)
+                    self._readline_echo(BELL, echo)
                 continue
             elif c == curses.KEY_UP or c == curses.KEY_DOWN:
+                if not use_history:
+                    self._readline_echo(BELL, echo)
+                    continue
                 if c == curses.KEY_UP:
                     if histptr > 0:
                         histptr = histptr - 1
                     else:
-                        self._readline_echo(chr(7), echo)
+                        self._readline_echo(BELL, echo)
                         continue
                 elif c == curses.KEY_DOWN:
                     if histptr < len(self.history):
                         histptr = histptr + 1
                     else:
-                        self._readline_echo(chr(7), echo)
+                        self._readline_echo(BELL, echo)
                         continue
                 line = []
                 if histptr < len(self.history):
@@ -477,7 +498,7 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
                 return 'QUIT'
             elif c == chr(10):
                 self._readline_echo(c, echo)
-                if echo == True or (echo == None and self.DOECHO == True):
+                if use_history:
                     self.history.append(''.join(line))
                 return ''.join(line)
             elif c == curses.KEY_BACKSPACE or c == chr(127) or c == chr(8):
@@ -486,22 +507,25 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
                     insptr = insptr - 1
                     del line[insptr]
                 else:
-                    self._readline_echo(chr(7), echo)
+                    self._readline_echo(BELL, echo)
                 continue
             elif c == curses.KEY_DC:
                 if insptr < len(line):
                     self._readline_echo(self.CODES['DEL'], echo)
                     del line[insptr]
                 else:
-                    self._readline_echo(chr(7), echo)
+                    self._readline_echo(BELL, echo)
                 continue
             else:
                 if ord(c) < 32:
                     c = curses.ascii.unctrl(c)
-                self._readline_echo(c, echo)
+                if len(line) > insptr:
+                    self._readline_insert(c, echo, insptr, line)
+                else:
+                    self._readline_echo(c, echo)
             line[insptr:insptr] = c
             insptr = insptr + len(c)
-            if echo==True or (echo==None and self.DOECHO):
+            if self._readline_do_echo(echo):
                 self._current_line = line
     
     #abstractmethod
@@ -732,9 +756,9 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
         password = None
         if self.authCallback:
             if self.authNeedUser:
-                username = self.readline(prompt="Username: ")
+                username = self.readline(prompt="Username: ", use_history=False)
             if self.authNeedPass:
-                password = self.readline(echo=False, prompt="Password: ")
+                password = self.readline(echo=False, prompt="Password: ", use_history=False)
                 if self.DOECHO:
                     self.write("\n")
             try:
