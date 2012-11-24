@@ -37,6 +37,15 @@ cooperative multi-processing.  This results in significantly less memory usage
 and nearly no idle processing.  The provided test server handles multiple connections,
 limited only by available memory.
 
-Subclass the class within the library to create your own telnet server.
+Subclass the class within the library to create your own telnet server.  The new class
+can be given to an appropriate StreamServer (such as from Gevent for the green version) 
+or a SocketServer to provide the actual services.
+
+>>> from telnetsrv.green import TelnetHandler
+>>> class MyHandler(TelnetHandler):
+>>>   ...
+>>> server = gevent.server.StreamServer((TELNET_IP_BINDING, TELNET_PORT_BINDING), /
+                                        MyHandler.streamserver_handle)
+
 """
 )

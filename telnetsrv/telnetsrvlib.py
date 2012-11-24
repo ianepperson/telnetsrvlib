@@ -189,6 +189,149 @@ class dummylogger(object):
     def exception(self, *kargs, **kwargs):
         pass
 
+class InputSimple(object):
+    '''Simple line handler.  All spaces become one, can have quoted parameters, but not null'''
+    quote_chars = ['"', "'"]
+    def __init__(self, handler, line):
+        self.parts = []
+        self.process(line)
+    
+    @property
+    def cmd(self):
+        try:
+            return self.parts[0]
+        except IndexError:
+            return ''
+        
+    @property
+    def params(self):
+        return self.parts[1:]
+
+    
+    def process(self, line):
+        line = line.strip()
+        self.raw = line
+        cmdlist = [item.strip() for item in line.split()]
+        idx = 0
+        while idx < (len(cmdlist) - 1):
+            if cmdlist[idx][0] in ["'", '"']:
+                cmdlist[idx] = cmdlist[idx] + " " + cmdlist.pop(idx+1)
+                if cmdlist[idx][0] != cmdlist[idx][-1]:
+                    continue
+                cmdlist[idx] = cmdlist[idx][1:-1]
+            idx = idx + 1
+        self.parts = cmdlist
+
+
+class InputBashLike(object):
+    '''Handles escaped characters, quoted parameters and multi-line input similar to Bash.'''
+    quote_chars = ['"', "'"]
+    whitespace = [' ', '\t']
+    escape_char = "\\"
+    escape_results = {'\\':'\\', 't':'\t', 'n':'\n', ' ':' ', '"': '"', "'":"'"}
+    continue_prompt = '... '
+    eol_char = '\n'
+    
+    def __init__(self, handler, line):
+        self.raw = ''
+        self.handler = handler
+        self.complete = False
+        self.inquote = False
+        self.parts = []
+        self.part = []
+        self.process_char = self.process_delimiter
+        self.process(line)
+    
+    @property
+    def cmd(self):
+        try:
+            return self.parts[0]
+        except IndexError:
+            return ''
+        
+    @property
+    def params(self):
+        return self.parts[1:]
+    
+    
+    def process_delimiter(self, char):
+        '''Process chars while not in a part'''
+        if char in self.whitespace:
+            return
+        if char in self.quote_chars:
+            self.inquote = char
+            self.process_char = self.process_quote
+            return
+        if char == self.eol_char:
+            self.complete = True
+            return
+        self.process_char = self.process_part
+        self.process_char(char)
+    
+    def process_part(self, char):
+        '''Process chars while in a part'''
+        if char in self.whitespace or char == self.eol_char:
+            # End of the part.
+            self.parts.append( ''.join(self.part) )
+            self.part = []
+            self.process_char = self.process_delimiter
+            if char == self.eol_char:
+                self.complete = True
+            return
+        if char in self.quote_chars:
+            self.inquote = char
+            self.process_char = self.process_quote
+            return
+        self.part.append(char)
+    
+    def process_quote(self, char):
+        '''Process character while in a quote'''
+        if char == self.inquote:
+            #self.inquote = False
+            self.process_char = self.process_part
+            return
+        try:
+            self.part.append(char)
+        except:
+            self.part = [ char ]
+    
+    def process_escape(self, char):
+        '''Handle the char after the escape char'''
+        # Always only run once
+        self.process_char = self.last_process_char
+        if self.part == [] and char in self.whitespace:
+            # Special case where \ is by itself and not at the EOL
+            self.parts.append(self.escape_char)
+            return
+        if char == self.eol_char:
+            # Ignore a cr
+            return
+        unescaped = self.escape_results.get(char, self.escape_char+char)
+        self.part.append(unescaped)
+            
+    
+    def process(self, line):
+        '''Step through the line and process each character'''
+        self.raw = self.raw + line
+        try:
+            if not line[-1] == self.eol_char:
+                # Should always be here, but add it just in case
+                line = line + self.eol_char
+        except IndexError:
+            # Thrown if line==''
+            line = self.eol_char
+                
+        for char in line:
+            if char == self.escape_char:
+                # Always handle escaped characters
+                self.last_process_char = self.process_char
+                self.process_char = self.process_escape
+                continue
+            self.process_char(char)
+        if not self.complete:
+            # Ask for more
+            self.process( self.handler.readline(prompt=self.handler.CONTINUE_PROMPT) )
+
 
 class TelnetHandlerBase(SocketServer.BaseRequestHandler):
     "A telnet server based on the client in telnetlib"
@@ -242,6 +385,8 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
     }
     # What prompt to display
     PROMPT = "Telnet Server> "
+    # What prompt to use for requesting more input
+    CONTINUE_PROMPT = "... "
     # What to display upon connection
     WELCOME = "You have connected to the telnet server."
     # The function to call to verify authentication data
@@ -250,6 +395,9 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
     authNeedUser = False
     # Does authCallback want a password?
     authNeedPass = False
+    # What will handle our inputs?
+    #input_reader = InputSimple
+    input_reader = InputBashLike
 
 # --------------------------- Environment Setup ----------------------------
 
@@ -749,6 +897,7 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
         "Exception handler (False to abort)"
         self.writeline(''.join( traceback.format_exception(exc_type, exc_param, exc_tb) ))
         return True
+        
 
     def handle(self):
         "The actual service to which the user has connected."
@@ -769,19 +918,12 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
             self.writeline(self.WELCOME)
         self.session_start()
         while self.RUNSHELL:
-            self.raw_input = self.readline(prompt=self.PROMPT).strip()
-            cmdlist = [item.strip() for item in self.raw_input.split()]
-            idx = 0
-            while idx < (len(cmdlist) - 1):
-                if cmdlist[idx][0] in ["'", '"']:
-                    cmdlist[idx] = cmdlist[idx] + " " + cmdlist.pop(idx+1)
-                    if cmdlist[idx][0] != cmdlist[idx][-1]:
-                        continue
-                    cmdlist[idx] = cmdlist[idx][1:-1]
-                idx = idx + 1
-            if cmdlist:
-                cmd = cmdlist[0].upper()
-                params = cmdlist[1:]
+            raw_input = self.readline(prompt=self.PROMPT).strip()
+            self.input = self.input_reader(self, raw_input)
+            self.raw_input = self.input.raw
+            if self.input.cmd:
+                cmd = self.input.cmd.upper()
+                params = self.input.params
                 if self.COMMANDS.has_key(cmd):
                     try:
                         self.COMMANDS[cmd](params)
