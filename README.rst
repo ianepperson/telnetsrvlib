@@ -4,7 +4,7 @@ telnetsrvlib
 Telnet server using gevent or threading.
 
 Copied from http://pytelnetsrvlib.sourceforge.net/
-and modified to support gevent.
+and modified to support gevent, better input handling, clean asynchronous messages and much more.
 Licensed under the LGPL, as per the SourceForge notes.
 
 This library allows you to easily create a Telnet server, powered by your Python code.
@@ -16,7 +16,7 @@ You use the library to create your own handler, then pass that handler to a Stre
 or TCPServer to perform the actual connection tasks.
 
 This library includes two flavors of the server handler, one uses separate threads,
-the other uses greenlets (green psudo-threads) via gevent.
+the other uses greenlets (green pseudo-threads) via gevent.
 
 The threaded version uses a separate thread to process the input buffer and
 semaphores reading and writing.  The provided test server only handles a single
@@ -102,9 +102,11 @@ Command Help Text
 The command's docstring is used for generating the console help information, and must be formatted
 with at least 3 lines:
 
-- Line 0:  Command paramater(s) if any. (Can be blank line)
+- Line 0:  Command parameter(s) if any. (Can be blank line)
 - Line 1:  Short descriptive text. (Mandatory)
 - Line 2+: Long descriptive text. (Can be blank line)
+
+If there is no line 2, line 1 will be used for the long description as well.
 
 ::
 
@@ -213,7 +215,7 @@ Override these class members to change the handler's behavior.
   Default: ``"You have connected to the telnet server."``
 
 ``session_start(self)``
-  Called after the WELCOME text is displayed.
+  Called after the ``WELCOME`` text is displayed.
   
   Default:  pass
     
@@ -224,7 +226,7 @@ Override these class members to change the handler's behavior.
   
 ``authCallback(self, username, password)`` 
   Reference to authentication function. If
-  there is none, no un/pw is requested. Should
+  this is not defined, no username or password is requested. Should
   raise an exception if authentication fails
   
   Default: None
