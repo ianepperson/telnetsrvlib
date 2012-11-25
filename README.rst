@@ -50,7 +50,8 @@ To Use
 Import the ``TelnetHandler`` base class and ``command`` function decorator from either the green class or threaded class, 
 then subclass ``TelnetHandler`` to add your own commands as specially named methods.  
 
-Threaded:
+Threaded
+++++++++
 
 ::
 
@@ -58,7 +59,8 @@ Threaded:
 > class MyHandler(TelnetHandler):
 >    ...
 
-Green:
+Green
++++++
 
 ::
 
