@@ -30,18 +30,19 @@ and nearly no idle processing.  The provided test server handles a large number 
 Install
 -------
 
-telnetsrv is available through the cheeseshop.  To install, simply:
+telnetsrv is available through the Cheeseshop.  You can use easy_install or pip to perform the installation.
 
 :: 
 
- sudo easy_install telnetsrv
+ easy_install telnetsrv
 
 or
 
 ::
 
- sudo pip install telnetsrv
+ pip install telnetsrv
 
+Note that there are no dependancies defined, but if you want to use the green version, you must also install gevent.
 
 To Use
 ------
@@ -65,8 +66,8 @@ Green:
 > class MyHandler(TelnetHandler):
 >    ...
 
-Add Commands
-------------
+Adding Commands
+---------------
 
 Commands can be defined by using the ``command`` function decorator.
 
@@ -80,7 +81,7 @@ Command Parameters
 ++++++++++++++++++
 
 Any command parameters will be passed to this function automatically.  The parameters are
-contained in a list.  The user input is parsed similar to the way Bash parses text - space delimited,
+contained in a list.  The user input is parsed similar to the way Bash parses text: space delimited,
 quoted parameters are kept together and default behavior can be modified with the ``\`` character.  
 If you need to access the raw text input, inspect the self.input.raw variable.
 
@@ -91,7 +92,7 @@ If you need to access the raw text input, inspect the self.input.raw variable.
 ::
 
 >   params == ['1', '2    3']
->   self.raw_input == 'echo 1 "2    3"'
+>   self.input.raw == 'echo 1 "2    3"\n'
 
 ::
 
@@ -161,7 +162,7 @@ To create an alias for the new command, set the method's name to a list:
 ::
 
 >   @command(['echo', 'copy'])
->   def comand_echo(self, params):
+>   def command_echo(self, params):
 >      ...
 
 The decorator may be stacked, which adds each list to the aliases:
@@ -171,7 +172,7 @@ The decorator may be stacked, which adds each list to the aliases:
 >   @command('echo')
 >   @command(['copy', 'repeat'])
 >   @command('ditto')
->   def comand_echo(self, params):
+>   def command_echo(self, params):
 >      ...
 
 
@@ -184,7 +185,7 @@ To hide the command (and any alias for that command) from the help text output, 
 ::
 
 >   @command('echo', hidden=True)
->   def comand_echo(self, params):
+>   def command_echo(self, params):
 >      ...
 
 The command will not show when the user invokes ``help`` by itself, but the detailed help text will show if
