@@ -34,7 +34,7 @@ if not SERVERTYPE in ['green', 'threaded']:
 if SERVERTYPE == 'green':
     import gevent, gevent.server
     
-    from telnetsrv.green import TelnetHandler
+    from telnetsrv.green import TelnetHandler, command
 
 # To run a threaded server, import threading and other libraries to help out.
 if SERVERTYPE == 'threaded':
@@ -42,7 +42,7 @@ if SERVERTYPE == 'threaded':
     import threading
     import time
 
-    from telnetsrv.threaded import TelnetHandler
+    from telnetsrv.threaded import TelnetHandler, command
     
     # The SocketServer needs *all IPs* to be 0.0.0.0
     if not TELNET_IP_BINDING:
@@ -120,8 +120,8 @@ class TestTelnetHandler(TelnetHandler):
 
 
     # -- Custom Commands --
-
-    def cmdDEBUG(self, params):
+    @command('debug')
+    def command_debug(self, params):
         """
         Display some debugging data
         """
@@ -134,8 +134,15 @@ class TestTelnetHandler(TelnetHandler):
                     line = line + c
             self.writeresponse(line)
 
+    @command('params')
+    def command_params(self, params):
+        '''[<params>]*
+        Echos back the raw recevied parameters.
+        '''
+        self.writeresponse("params == %r" % params)
     
-    def cmdTIMER(self, params):
+    @command(['timer', 'timeit'])
+    def command_timer(self, params):
         '''<time> <message>
         In <time> seconds, display <message>.
         Send a message after a delay.
@@ -164,6 +171,9 @@ class TestTelnetHandler(TelnetHandler):
         # eat up resources and/or throw errors at strange times.
 
     
+    # Older method of defining a command
+    # must start with "cmd" and end wtih the command name.
+    # Aliases may be attached after the method definitions.
     def cmdECHO(self, params):
         '''<text to echo>
         Echo text back to the console.
@@ -184,6 +194,14 @@ class TestTelnetHandler(TelnetHandler):
     cmdTERM.hidden = True
 
 
+    @command('hide-me', hidden=True)
+    @command(['hide-me-too', 'also-me'])
+    def command_do_nothing(self, params):
+        '''
+        Hidden command to perform no action
+        
+        '''
+        self.writeresponse( 'Nope, did nothing.')
     
 if SERVERTYPE == 'green':
     # Multi-green-threaded server

@@ -189,6 +189,35 @@ class dummylogger(object):
     def exception(self, *kargs, **kwargs):
         pass
 
+
+class command():
+    '''Function decorator to define a telnet command.'''
+    def __init__(self, names, hidden=False):
+        if type(names) is str:
+            self.name = names
+            self.alias = []
+        else:
+            self.name = names[0]
+            self.alias = names[1:]
+        self.hidden = hidden
+    
+    def __call__(self, fn):
+        try:
+            # First, assume there are more than one decorators.
+            # Try to prepend to the list of aliases.
+            fn.aliases.append(fn.command_name)
+            fn.aliases.extend(self.alias)
+            fn.command_name = self.name
+            fn.hidden = self.hidden or fn.hidden
+        except:
+            # If that didn't work, this method only has one decorator
+            fn.aliases = self.alias
+            fn.command_name = self.name
+            fn.hidden = self.hidden
+        return fn
+        
+        
+
 class InputSimple(object):
     '''Simple line handler.  All spaces become one, can have quoted parameters, but not null'''
     quote_chars = ['"', "'"]
@@ -425,13 +454,22 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
         self.history = []   # Command history
         self.RUNSHELL = True
         # A little magic - Everything called cmdXXX is a command
+        # Also, check for decorated functions
         for k in dir(self):
-            if k[:3] == 'cmd':
-                name = k[3:]
-                method = getattr(self, k)
-                self.COMMANDS[name] = method
-                for alias in getattr(method, "aliases", []):
-                    self.COMMANDS[alias] = self.COMMANDS[name]
+            method = getattr(self, k)
+            try:
+                name = method.command_name
+            except:
+                if k[:3] == 'cmd':
+                    name = k[3:]
+                else:
+                    continue
+            
+            name = name.upper()
+            self.COMMANDS[name] = method
+            for alias in getattr(method, "aliases", []):
+                self.COMMANDS[alias.upper()] = self.COMMANDS[name]
+                    
         SocketServer.BaseRequestHandler.__init__(self, request, client_address, server)
     
     class false_request(object):

@@ -5,7 +5,7 @@ import threading
 import time
 import select
 
-from telnetsrvlib import TelnetHandlerBase
+from telnetsrvlib import TelnetHandlerBase, command
 
 class TelnetHandler(TelnetHandlerBase):
     "A telnet server handler using Threading"
