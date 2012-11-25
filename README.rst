@@ -48,7 +48,7 @@ To Use
 ------
 
 Import the ``TelnetHandler`` base class and ``command`` function decorator from either the green class or threaded class, 
-then subclass ``TelnetHandler`` to add your own commands as specially named methods.  
+then subclass ``TelnetHandler`` to add your own commands which are methods decorated with ``@command``.  
 
 Threaded
 ++++++++
