@@ -27,6 +27,22 @@ cooperative multi-processing.  This results in significantly less memory usage
 and nearly no idle processing.  The provided test server handles a large number of connections.
 
 
+Install
+-------
+
+telnetsrv is available through the cheeseshop.  To install, simply:
+
+:: 
+
+ sudo easy_install telnetsrv
+
+or
+
+::
+
+ sudo pip install telnetsrv
+
+
 To Use
 ------
 
