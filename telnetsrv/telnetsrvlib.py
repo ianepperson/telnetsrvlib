@@ -268,6 +268,7 @@ class InputBashLike(object):
         self.inquote = False
         self.parts = []
         self.part = []
+        # Set up the initial processing state.
         self.process_char = self.process_delimiter
         self.process(line)
     
@@ -282,18 +283,21 @@ class InputBashLike(object):
     def params(self):
         return self.parts[1:]
     
+    # The following process_x functions handle different states while stepping through the chars of the line.
     
     def process_delimiter(self, char):
         '''Process chars while not in a part'''
         if char in self.whitespace:
             return
         if char in self.quote_chars:
+            # Store the quote type (' or ") and switch to quote processing.
             self.inquote = char
             self.process_char = self.process_quote
             return
         if char == self.eol_char:
             self.complete = True
             return
+        # Switch to processing a part.
         self.process_char = self.process_part
         self.process_char(char)
     
@@ -303,11 +307,13 @@ class InputBashLike(object):
             # End of the part.
             self.parts.append( ''.join(self.part) )
             self.part = []
+            # Switch back to processing a delimiter.
             self.process_char = self.process_delimiter
             if char == self.eol_char:
                 self.complete = True
             return
         if char in self.quote_chars:
+            # Store the quote type (' or ") and switch to quote processing.
             self.inquote = char
             self.process_char = self.process_quote
             return
@@ -316,7 +322,7 @@ class InputBashLike(object):
     def process_quote(self, char):
         '''Process character while in a quote'''
         if char == self.inquote:
-            #self.inquote = False
+            # Quote is finished, switch to part processing.
             self.process_char = self.process_part
             return
         try:
@@ -326,14 +332,14 @@ class InputBashLike(object):
     
     def process_escape(self, char):
         '''Handle the char after the escape char'''
-        # Always only run once
+        # Always only run once, switch back to the last processor.
         self.process_char = self.last_process_char
         if self.part == [] and char in self.whitespace:
-            # Special case where \ is by itself and not at the EOL
+            # Special case where \ is by itself and not at the EOL.
             self.parts.append(self.escape_char)
             return
         if char == self.eol_char:
-            # Ignore a cr
+            # Ignore a cr.
             return
         unescaped = self.escape_results.get(char, self.escape_char+char)
         self.part.append(unescaped)
@@ -344,21 +350,21 @@ class InputBashLike(object):
         self.raw = self.raw + line
         try:
             if not line[-1] == self.eol_char:
-                # Should always be here, but add it just in case
+                # Should always be here, but add it just in case.
                 line = line + self.eol_char
         except IndexError:
-            # Thrown if line==''
+            # Thrown if line == ''
             line = self.eol_char
                 
         for char in line:
             if char == self.escape_char:
-                # Always handle escaped characters
+                # Always handle escaped characters.
                 self.last_process_char = self.process_char
                 self.process_char = self.process_escape
                 continue
             self.process_char(char)
         if not self.complete:
-            # Ask for more
+            # Ask for more.
             self.process( self.handler.readline(prompt=self.handler.CONTINUE_PROMPT) )
 
 
