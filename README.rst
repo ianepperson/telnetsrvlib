@@ -102,9 +102,9 @@ Command Help Text
 The command's docstring is used for generating the console help information, and must be formatted
 with at least 3 lines:
 
- * Line 0:  Command paramater(s) if any. (Can be blank line)
- * Line 1:  Short descriptive text. (Mandatory)
- * Line 2+: Long descriptive text. (Can be blank line)
+- Line 0:  Command paramater(s) if any. (Can be blank line)
+- Line 1:  Short descriptive text. (Mandatory)
+- Line 2+: Long descriptive text. (Can be blank line)
 
 ::
 
@@ -199,25 +199,29 @@ Handler Options
 Override these class members to change the handler's behavior.
 
 ``logging``
-  Default: No-op.
+  Default: pass
 
 ``PROMPT``
-  Default: "Telnet Server> "
+  Default: ``"Telnet Server> "``
     
 ``CONTINUE_PROMPT``
-  Default: "... "
+  Default: ``"... "``
      
 ``WELCOME``
   Displayed after a successful connection, after the username/password is accepted, if configured.
   
-  Default: "You have connected to the telnet server."
+  Default: ``"You have connected to the telnet server."``
 
 ``session_start(self)``
   Called after the WELCOME text is displayed.
+  
+  Default:  pass
     
 ``session_end(self)``
   Called after the console is disconnected.
-     
+  
+  Default:  pass
+  
 ``authCallback(self, username, password)`` 
   Reference to authentication function. If
   there is none, no un/pw is requested. Should
@@ -228,12 +232,12 @@ Override these class members to change the handler's behavior.
 ``authNeedUser`` 
   Should a username be requested?
   
-  Default: False
+  Default: ``False``
 
 ``authNeedPass``
   Should a password be requested?
   
-  Default: False
+  Default: ``False``
 
 
 Handler Display Modification
@@ -262,7 +266,8 @@ from an appropriate server.  The server will create an instance of the TelnetHan
 for each new connection.  The handler class will work with either a gevent StreamServer instance
 (for the green version) or with a SocketServer.TCPServer instance (for the threaded version).
 
-Threaded:
+Threaded
+++++++++
 
 ::
 
@@ -273,7 +278,8 @@ Threaded:
 > server = TelnetServer(("0.0.0.0", 8023), MyHandler)
 > server.serve_forever()
 
-Green:
+Green
++++++
 
 The TelnetHandler class includes a streamserver_handle class method to translate the 
 required fields from a StreamServer, allowing use with the gevent StreamServer (and possibly
@@ -303,7 +309,7 @@ Short Example
 >         Echo text back to the console.
 >         
 >         '''
->         self.writeline( ' '.join(params) )
+>         self.writeresult( ' '.join(params) )
 >
 >     @command('timer')
 >     def command_timer(self, params):
@@ -319,9 +325,9 @@ Short Example
 >             timestr, message = params[:2]
 >             time = int(timestr)
 >         except ValueError:
->             self.writeline( "Need both a time and a message" )
+>             self.writeerror( "Need both a time and a message" )
 >             return
->         self.writeline("Waiting %d seconds...", time)
+>         self.writeresult("Waiting %d seconds...", time)
 >         gevent.spawn_later(time, self.writemessage, message)
 >
 >
