@@ -87,10 +87,10 @@ this also creates an ``echo`` command:
 
 .. code:: python
 
-  cmdECHO(self, params):
+  def cmdECHO(self, params):
      ...
 
-This method is less flexible and may not be supported in future releases.
+*This method is less flexible and may not be supported in future releases.*
 
 Command Parameters
 ++++++++++++++++++
