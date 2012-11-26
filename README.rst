@@ -53,31 +53,44 @@ then subclass ``TelnetHandler`` to add your own commands which are methods decor
 Threaded
 ++++++++
 
-::
+.. code:: python
 
-> from telnetsrv.threaded import TelnetHandler, command
-> class MyHandler(TelnetHandler):
->    ...
+ from telnetsrv.threaded import TelnetHandler, command
+ class MyHandler(TelnetHandler):
+    ...
 
 Green
 +++++
 
-::
+.. code:: python
 
-> from telnetsrv.green import TelnetHandler, command
-> class MyHandler(TelnetHandler):
->    ...
+ from telnetsrv.green import TelnetHandler, command
+ class MyHandler(TelnetHandler):
+    ...
 
 Adding Commands
 ---------------
 
 Commands can be defined by using the ``command`` function decorator.
 
-::
+.. code:: python
 
->   @command('echo')
->   def command_echo(self, params):
->      ...
+  @command('echo')
+  def command_echo(self, params):
+     ...
+
+Old Style
++++++++++
+
+Commands can also be defined by prefixing any method with "cmd".  For example, 
+this also creates an ``echo`` command:
+
+.. code:: python
+
+  cmdECHO(self, params):
+     ...
+
+This method is less flexible and may not be supported in future releases.
 
 Command Parameters
 ++++++++++++++++++
@@ -91,10 +104,10 @@ If you need to access the raw text input, inspect the self.input.raw variable.
 
    Telnet Server> echo 1  "2    3"
 
-::
+.. code:: python
 
->   params == ['1', '2    3']
->   self.input.raw == 'echo 1 "2    3"\n'
+  params == ['1', '2    3']
+  self.input.raw == 'echo 1 "2    3"\n'
 
 ::
 
@@ -103,17 +116,17 @@ If you need to access the raw text input, inspect the self.input.raw variable.
     ... 4"  "5\
     ... 6"
     
-::
+.. code:: python
 
->   params == ['1', '2', '3\n4', '56']
+  params == ['1', '2', '3\n4', '56']
 
 ::
 
     Telnet Server> echo 1\ 2
     
-::
+.. code:: python
 
->   params == ['1 2']
+  params == ['1 2']
 
 Command Help Text
 +++++++++++++++++
@@ -127,16 +140,16 @@ with at least 3 lines:
 
 If there is no line 2, line 1 will be used for the long description as well.
 
-::
+.. code:: python
 
->    @command('echo')
->    def command_echo(self, params):
->        '''<text to echo>
->        Echo text back to the console.
->        This command simply echos the provided text
->        back to the console.
->        '''
->        pass
+   @command('echo')
+   def command_echo(self, params):
+       '''<text to echo>
+       Echo text back to the console.
+       This command simply echos the provided text
+       back to the console.
+       '''
+       pass
 
 
 ::
@@ -161,21 +174,21 @@ Command Aliases
 
 To create an alias for the new command, set the method's name to a list:
 
-::
+.. code:: python
 
->   @command(['echo', 'copy'])
->   def command_echo(self, params):
->      ...
+  @command(['echo', 'copy'])
+  def command_echo(self, params):
+     ...
 
 The decorator may be stacked, which adds each list to the aliases:
 
-::
+.. code:: python
 
->   @command('echo')
->   @command(['copy', 'repeat'])
->   @command('ditto')
->   def command_echo(self, params):
->      ...
+  @command('echo')
+  @command(['copy', 'repeat'])
+  @command('ditto')
+  def command_echo(self, params):
+     ...
 
 
 
