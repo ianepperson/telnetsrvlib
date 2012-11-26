@@ -184,11 +184,11 @@ Hidden Commands
 
 To hide the command (and any alias for that command) from the help text output, pass in hidden=True to the decorator:
 
-::
+.. code:: python
 
->   @command('echo', hidden=True)
->   def command_echo(self, params):
->      ...
+  @command('echo', hidden=True)
+  def command_echo(self, params):
+     ...
 
 The command will not show when the user invokes ``help`` by itself, but the detailed help text will show if
 the user invokes ``help echo``.
@@ -273,11 +273,11 @@ See http://en.wikipedia.org/wiki/ANSI_escape_code
 - writeresult( TEXT ) 
 - writeerror( TEXT ) 
 
-::
+.. code:: python
 
->    def writeerror(self, text):
->        '''Write errors in red'''
->        TelnetHandler.writeerror(self, "\x1b[91m%s\x1b[0m" % text )
+    def writeerror(self, text):
+        '''Write errors in red'''
+        TelnetHandler.writeerror(self, "\x1b[91m%s\x1b[0m" % text )
 
 Serving the Handler
 -------------------
@@ -290,14 +290,14 @@ for each new connection.  The handler class will work with either a gevent Strea
 Threaded
 ++++++++
 
-::
+.. code:: python
 
-> import SocketServer
-> class TelnetServer(SocketServer.TCPServer):
->     allow_reuse_address = True
->    
-> server = TelnetServer(("0.0.0.0", 8023), MyHandler)
-> server.serve_forever()
+ import SocketServer
+ class TelnetServer(SocketServer.TCPServer):
+     allow_reuse_address = True
+    
+ server = TelnetServer(("0.0.0.0", 8023), MyHandler)
+ server.serve_forever()
 
 Green
 +++++
@@ -306,11 +306,11 @@ The TelnetHandler class includes a streamserver_handle class method to translate
 required fields from a StreamServer, allowing use with the gevent StreamServer (and possibly
 others).
 
-::
+.. code:: python
 
-> import gevent.server
-> server = gevent.server.StreamServer(("", 8023), MyHandler.streamserver_handle)
-> server.server_forever()
+ import gevent.server
+ server = gevent.server.StreamServer(("", 8023), MyHandler.streamserver_handle)
+ server.server_forever()
 
 
 Short Example
