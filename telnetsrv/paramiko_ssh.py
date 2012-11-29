@@ -41,6 +41,11 @@ class Server(paramiko.ServerInterface):
 
     def check_channel_pty_request(self, channel, term, width, height, pixelwidth,
                                   pixelheight, modes):
+        self.term = term
+        print "term: %r, modes: %r" % (term, modes)
+        # modes = http://www.ietf.org/rfc/rfc4254.txt page 18
+        # for i in xrange(50):
+        #    print "%r: %r" % (int(m[i*5].encode('hex'), 16), int(''.join(m[i*5+1:i*5+5]).encode('hex'), 16))
         return True
 
 class Request2Channel(object):
@@ -73,9 +78,7 @@ class Request2Channel(object):
             raise RuntimeError('Client never asked for a shell')
         
         self._sock = self.channel
-        
-        print dir(self._sock)
-       
+               
 
 
 class SSHHandler(TelnetHandler):
@@ -88,10 +91,23 @@ class SSHHandler(TelnetHandler):
         # what the rest of the handler will expect: a socket to read/write
         
         self.request = Request2Channel(self.request)
-                
+        self.sock = self.request._sock
+        self.setterm(self.request.server.term)
+        
+        # Don't mention these, client isn't listening for them.  Blank the dicts.
+        self.DOACK = {}
+        self.WILLACK = {}
+        
         # Call the base class setup
         TelnetHandler.setup(self)
  
+    def cmdTERM(self, params):
+        '''
+        Hidden command to print the current TERM
+        
+        '''
+        self.writeresponse( self.TERM )
+
         
 print 'Starting server...'        
 server = gevent.server.StreamServer(('', 10444), SSHHandler.streamserver_handle)
