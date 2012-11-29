@@ -766,7 +766,7 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
             self.rawq = self.rawq[1:]
             return ret
         if not block:
-            if not self._inputcooker_socket_ready():
+            if not self.inputcooker_socket_ready():
                 return ''
         ret = self.sock.recv(20)
         self.eof = not(ret)
