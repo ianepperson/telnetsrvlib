@@ -29,3 +29,5 @@ pip-log.txt
 .DS_Store
 
 MANIFEST
+
+telnetsrv/server_rsa.key
