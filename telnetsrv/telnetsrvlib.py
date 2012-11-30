@@ -509,7 +509,10 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
 
     def setup(self):
         "Connect incoming connection to a telnet session"
-        self.setterm(self.TERM)
+        try:
+            self.TERM = self.request.term
+        except:
+            self.setterm(self.TERM)
         self.sock = self.request._sock
         for k in self.DOACK.keys():
             self.sendcommand(self.DOACK[k], k)
