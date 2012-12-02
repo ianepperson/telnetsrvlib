@@ -1,23 +1,12 @@
-from gevent import monkey; monkey.patch_all()
-
-from binascii import hexlify
-from threading import Event, Thread
+#from binascii import hexlify
+from threading import Thread
 from SocketServer import BaseRequestHandler
 
-#from gevent.event import Event
-import gevent
-import gevent.server
-import paramiko
 from paramiko import Transport, ServerInterface, RSAKey, DSSKey, SSHException, \
                     AUTH_SUCCESSFUL, AUTH_FAILED, \
                     OPEN_SUCCEEDED, OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED, \
                     OPEN_FAILED_UNKNOWN_CHANNEL_TYPE, OPEN_FAILED_RESOURCE_SHORTAGE
 
-from green import TelnetHandler
-
-# Grab the key from the keyfile
-#host_key = paramiko.RSAKey(filename='test_rsa.key')
-#print 'Read key: ' + hexlify(host_key.get_fingerprint())
 
 def getRsaKeyFile(filename, password=None):
     try:
@@ -29,35 +18,6 @@ def getRsaKeyFile(filename, password=None):
     return key
 
 
-#class Request2Channel(object):
-#    def __init__(self, request, server):
-#        self._orig_request = request
-#        self.client = request._sock
-#                
-#        self.transport = Transport(self.client)
-#        try:
-#            self.transport.load_server_moduli()
-#        except:
-#            print '(Failed to load moduli -- gex will be unsupported.)'
-#            raise
-#        self.transport.add_server_key(host_key)
-#        
-#        try:
-#            self.transport.start_server(server=server)
-#        except paramiko.SSHException, e:
-#           print('SSH negotiation failed. %s' % e)
-#           raise
-#        
-#        self.channel = self.transport.accept(20)
-#        if self.channel is None:
-#            raise RuntimeError('No Channel')
-#        
-#        server.shell_request.wait(10)
-#        if not server.shell_request.isSet():
-#            raise RuntimeError('Client never asked for a shell')
-#        
-#        self._sock = self.channel
-               
 class TelnetToPtyHandler(object):
     '''Mixin to turn TelnetHandler into PtyHandler'''
     def __init__(self, *args):
@@ -68,7 +28,11 @@ class TelnetToPtyHandler(object):
     WILLACK = {}
     
     # Do not ask for auth in the PTY, it'll be handled via SSH, then passed in with the request
-    authCallback = None
+    def authentication_ok(self):
+        '''Checks the authentication and sets the username of the currently connected terminal.  Returns True or False'''
+        # Since authentication already happened, this should always return true
+        self.username = self.request.username
+        return True
 
 
 class SSHHandler(ServerInterface, BaseRequestHandler):
@@ -90,10 +54,11 @@ class SSHHandler(ServerInterface, BaseRequestHandler):
         self.transport = Transport(self.client)
         
         # Create the PTY handler class by mixing in
-        class MixedPtyHandler(TelnetToPtyHandler, self.telnet_handler):
+        TelnetHandlerClass = self.telnet_handler
+        class MixedPtyHandler(TelnetToPtyHandler, TelnetHandlerClass):
             # BaseRequestHandler does not inherit from object, must call the __init__ directly
             def __init__(self, *args):
-                TestTelnetHandler.__init__(self, *args)
+                TelnetHandlerClass.__init__(self, *args)
         self.pty_handler = MixedPtyHandler
         
         
@@ -164,20 +129,67 @@ class SSHHandler(ServerInterface, BaseRequestHandler):
             return OPEN_SUCCEEDED
         return OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
 
-    def check_auth_password(self, username, password):
-        print 'check_auth_password(%s, %s)' % (username, password)
-        if (username == 'ian') and (password == 'yo'):
-            return AUTH_SUCCESSFUL
-        return AUTH_FAILED
+    def set_username(self, username):
+        self.username = username
 
-    def check_auth_publickey(self, username, key):
-        print 'Auth attempt with key: ' + hexlify(key.get_fingerprint())
-        #if (username == 'ian') and (key == self.good_pub_key):
-        #    return paramiko.AUTH_SUCCESSFUL
-        return AUTH_FAILED
+    ######  Handle User Authentication ######
+    
+    # Override these with functions to use for callbacks
+    authCallback = None
+    authCallbackKey = None
+    authCallbackUsername = None
 
     def get_allowed_auths(self, username):
-        return 'password,publickey'
+        methods = []
+        if self.authCallbackUsername is not None:
+            methods.append('none')
+        if self.authCallback is not None:
+            methods.append('password')
+        if self.authCallbackKey is not None:
+            methods.append('publickey')
+            
+        if methods == []:
+            # If no methods were defined, use none
+            methods.append('none')
+            
+        return ','.join(methods)
+
+    def check_auth_password(self, username, password):
+        #print 'check_auth_password(%s, %s)' % (username, password)
+        try:
+            self.authCallback(username, password)
+        except:
+            return AUTH_FAILED
+        else:
+            self.set_username(username)
+            return AUTH_SUCCESSFUL
+        
+
+    def check_auth_publickey(self, username, key):
+        #print 'Auth attempt with key: ' + hexlify(key.get_fingerprint())
+        try:
+            self.authCallbackKey(username, key)
+        except:
+            return AUTH_FAILED
+        else:
+            self.set_username(username)
+            return AUTH_SUCCESSFUL
+        #if (username == 'xx') and (key == self.good_pub_key):
+        #    return AUTH_SUCCESSFUL
+        
+
+    def check_auth_none(self, username):
+        if self.authCallbackUsername is None:
+            self.set_username(username)
+            return AUTH_SUCCESSFUL
+        try:
+            self.authCallbackUsername(username)
+        except:
+            return AUTH_FAILED
+        else:
+            self.set_username(username)
+            return AUTH_SUCCESSFUL
+
 
     def check_channel_shell_request(self, channel):
         '''Request to start a shell on the given channel'''
@@ -218,24 +230,3 @@ class SSHHandler(ServerInterface, BaseRequestHandler):
         # Shutdown the entire session
         self.transport.close()
         
-        
-
-
-class TestTelnetHandler(TelnetHandler): 
-    def cmdTERM(self, params):
-        '''
-        Hidden command to print the current TERM
-        
-        '''
-        self.writeresponse( self.TERM )
-
-
-class TestSSHHandler(SSHHandler):
-    telnet_handler = TestTelnetHandler
-    host_key = getRsaKeyFile("server_rsa.key")
-
-
-print 'Starting server with %r ...' % TestSSHHandler.streamserver_handle
-#TestSSHHandler.streamserver_handle(None, None)
-server = gevent.server.StreamServer(('', 10444), TestSSHHandler.streamserver_handle)
-server.serve_forever()
