@@ -430,6 +430,8 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
     authNeedUser = False
     # Does authCallback want a password?
     authNeedPass = False
+    # Default username
+    username = None
     # What will handle our inputs?
     #input_reader = InputSimple
     input_reader = InputBashLike
@@ -944,10 +946,9 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
         "Exception handler (False to abort)"
         self.writeline(''.join( traceback.format_exception(exc_type, exc_param, exc_tb) ))
         return True
-        
-
-    def handle(self):
-        "The actual service to which the user has connected."
+    
+    def authentication_ok(self):
+        '''Checks the authentication and sets the username of the currently connected terminal.  Returns True or False'''
         username = None
         password = None
         if self.authCallback:
@@ -960,7 +961,22 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
             try:
                 self.authCallback(username, password)
             except:
-                return
+                self.username = None
+                return False
+            else:
+                # Successful authentication
+                self.username = username
+                return True
+        else:
+            # No authentication desired
+            self.username = None
+            return True
+            
+
+    def handle(self):
+        "The actual service to which the user has connected."
+        if not self.authentication_ok():
+            return
         if self.DOECHO:
             self.writeline(self.WELCOME)
         self.session_start()
