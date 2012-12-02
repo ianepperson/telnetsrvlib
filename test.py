@@ -1,43 +1,35 @@
 #!/usr/bin/python
 
-import sys
 import logging
+import argparse
 
 logging.getLogger('').setLevel(logging.DEBUG)
 
 TELNET_IP_BINDING = '' #all
 
-# Obtain the port to use from the command line:
-try:
-    TELNET_PORT_BINDING = int(sys.argv[1])
-except:
-    print "Usage:  %s <port> [green]" % sys.argv[0]
-    print "  <port> is the port to bind to."
-    print '  "green" tells the server to use gevent.'
-    sys.exit(1)
+# Parse the input arguments
+# Normally, these would be down in "if __name__ == '__main__'", but we need to know green-vs-threaded for the base class and other imports
+parser = argparse.ArgumentParser( description='Run a telnet server.')
+parser.add_argument( 'port', metavar="PORT", type=int, help="The port on which to listen on." )
+parser.add_argument( '-g', '--green', action='store_const', const=True, default=False, help="Run with cooperative multitasking using Gevent library.")
+parser.add_argument( '-s', '--ssh', action='store_const', const=True, default=False, help="Run as SSH server using Paramiko library.")
+console_args = parser.parse_args()
 
-# Determine the type of server to run: green or threaded
-try:
-    SERVERTYPE = sys.argv[2].lower()
-except:
-    SERVERTYPE = 'threaded'
+TELNET_PORT_BINDING = console_args.port
 
-if not SERVERTYPE in ['green', 'threaded']:
-    print "I didn't understand that server type.  Did you mean to type:"
-    print " > %s %d green" % (sys.argv[0], TELNET_PORT_BINDING)
-    print " or"
-    print " > %s %d threaded" % (sys.argv[0], TELNET_PORT_BINDING)
-    sys.exit(1)
+if console_args.ssh:
+    SERVERPROTOCOL = 'SSH'
+else:
+    SERVERPROTOCOL = 'telnet'
 
-
-# To run a green server, import gevent and the green version of telnetsrv.
-if SERVERTYPE == 'green':
+if console_args.green:
+    SERVERTYPE = 'green'
+    # To run a green server, import gevent and the green version of telnetsrv.
     import gevent, gevent.server
-    
     from telnetsrv.green import TelnetHandler, command
-
-# To run a threaded server, import threading and other libraries to help out.
-if SERVERTYPE == 'threaded':
+else:
+    SERVERTYPE = 'threaded'
+    # To run a threaded server, import threading and other libraries to help out.
     import SocketServer
     import threading
     import time
@@ -88,23 +80,23 @@ class TestTelnetHandler(TelnetHandler):
 
     # -- Override items to customize the server --
 
-    WELCOME = 'You have connected to my test telnet server.'
-    PROMPT = "MyServer> "
+    WELCOME = 'You have connected to the test server.'
+    PROMPT = "TestServer> "
     authNeedUser = True
     authNeedPass = False
     
     def authCallback(self, username, password):
         '''Called to validate the username/password.'''
+        # Note that this method will be ignored if the SSH server is invoked.
         # We accept everyone here, as long as any name is given!
         if not username:
             # complain by raising any exception
             raise
-        self.username = username
 
     def session_start(self):
         '''Called after the user successfully logs in.'''
         self.writeline('This server is running %s.' % SERVERTYPE)
-        
+                
         # Tell myserver that we have a new connection, and provide the username.
         # We get back the login count information.
         globalcount, usercount = self.myserver.new_connection( self.username )
@@ -140,6 +132,16 @@ class TestTelnetHandler(TelnetHandler):
         Echos back the raw recevied parameters.
         '''
         self.writeresponse("params == %r" % params)
+
+    @command('info')
+    def command_info(self, params):
+        '''
+        Provides some information about the current terminal.
+        '''
+        self.writeresponse( "Username: %s, terminal type: %s" % (self.username, self.TERM) )
+        self.writeresponse( "Command history:" )
+        for c in self.history:
+            self.writeresponse("  %r" % c)
     
     @command(['timer', 'timeit'])
     def command_timer(self, params):
@@ -190,7 +192,7 @@ class TestTelnetHandler(TelnetHandler):
         
         '''
         self.writeresponse( self.TERM )
-    # Hide this command.  Will not show in the help list.
+    # Hide this command, old-style syntax.  Will not show in the help list.
     cmdTERM.hidden = True
 
 
@@ -202,21 +204,45 @@ class TestTelnetHandler(TelnetHandler):
         
         '''
         self.writeresponse( 'Nope, did nothing.')
+
+
+
+if __name__ == '__main__':
     
-if SERVERTYPE == 'green':
-    # Multi-green-threaded server
-    server = gevent.server.StreamServer((TELNET_IP_BINDING, TELNET_PORT_BINDING), TestTelnetHandler.streamserver_handle)
-    
-if SERVERTYPE == 'threaded':
-    # Single threaded server - only one session at a time
-    class TelnetServer(SocketServer.TCPServer):
-        allow_reuse_address = True
+    if SERVERPROTOCOL == 'SSH':
+        # Import the SSH stuff
+        # If we're using gevent, we have to monkey patch for the paramiko and paramiko_ssh libraries
+        if SERVERTYPE == 'green':
+            from gevent import monkey; monkey.patch_all()
+            
+        from telnetsrv.paramiko_ssh import SSHHandler, getRsaKeyFile
+
         
-    server = TelnetServer((TELNET_IP_BINDING, TELNET_PORT_BINDING), TestTelnetHandler)
-
-
-logging.info("Starting %s server at port %d.  (Ctrl-C to stop)" % (SERVERTYPE, TELNET_PORT_BINDING) )
-try:
-    server.serve_forever()
-except KeyboardInterrupt:
-    logging.info("Server shut down.")
+        # Create the handler for SSH, register the defined handler for use as the PTY
+        class TestSSHHandler(SSHHandler):
+            telnet_handler = TestTelnetHandler
+            # Create or open the server key file
+            host_key = getRsaKeyFile("server_rsa.key")
+        
+        # Define which handler the server should use:
+        Handler = TestSSHHandler
+    else:
+        Handler = TestTelnetHandler
+        
+    if SERVERTYPE == 'green':
+        # Multi-green-threaded server
+        server = gevent.server.StreamServer((TELNET_IP_BINDING, TELNET_PORT_BINDING), Handler.streamserver_handle)
+        
+    if SERVERTYPE == 'threaded':
+        # Single threaded server - only one session at a time
+        class TelnetServer(SocketServer.TCPServer):
+            allow_reuse_address = True
+            
+        server = TelnetServer((TELNET_IP_BINDING, TELNET_PORT_BINDING), Handler)
+    
+    
+    logging.info("Starting %s %s server at port %d.  (Ctrl-C to stop)" % (SERVERTYPE, SERVERPROTOCOL, TELNET_PORT_BINDING) )
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        logging.info("Server shut down.")
