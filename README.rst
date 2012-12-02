@@ -208,23 +208,73 @@ the user invokes ``help echo``.
 
 When stacking decorators, any one of the stack may define the hidden parameter to hide the command.
 
+Console Information
+-------------------
+
+These will be provided for inspection.
+
+``TERM``
+  String ID describing the currently connected terminal
+  
+``username``
+  Set after authentication succeeds, name of the logged in user.
+  If no authentication was requested, will be ``None``.
+  
+``history``
+  List containing the command history.  This can be manipulated directly.
+  
+
+.. code:: python
+
+    @command('info')
+    def command_info(self, params):
+        '''
+        Provides some information about the current terminal.
+        '''
+        self.writeresponse( "Username: %s, terminal type: %s" % (self.username, self.TERM) )
+        self.writeresponse( "Command history:" )
+        for c in self.history:
+            self.writeresponse("  %r" % c)
+
+
 Console Communication
 ---------------------
 
-To communicate with the connected Telnet client, use:
+Send Text to the Client
++++++++++++++++++++++++
  
-- self.writeline( TEXT )
-- self.write( TEXT )
-- self.readline( prompt=TEXT )
+Lower level functions:
 
-- self.writemessage( TEXT ) - for clean, asynchronous writing.  Any interrupted input is rebuilt.
-- self.writeresult( TEXT ) - to emit a line of expected output
-- self.writeerror( TEXT ) - to emit error messages
+``self.writeline( TEXT )``
+
+``self.write( TEXT )``
+
+Higher level functions:
+
+``self.writemessage( TEXT )`` - for clean, asynchronous writing.  Any interrupted input is rebuilt.
+
+``self.writeresponse( TEXT )`` - to emit a line of expected output
+
+``self.writeerror( TEXT )`` - to emit error messages
 
 The writemessage method is intended to send messages to the console without
 interrupting any current input.  If the user has entered text at the prompt, 
 the prompt and text will be seamlessly regenerated following the message.  
 It is ideal for asynchronous messages that aren't generated from the direct user input.
+
+Receive Text from the Client
+++++++++++++++++++++++++++++
+
+``self.readline( prompt=TEXT )``
+
+Setting the prompt is important to recreate the user input following a ``writemessage``
+interruption.
+
+When requesting sensative information from the user (such as requesting a password) the input should
+not be shown nor should it have access to or be written to the command history.  ``readline`` accepts
+two optional parameters to control this, ``echo`` and ``user_history``.
+
+``self.readline( prompt=TEXT, echo=False, use_history=False )``
 
 
 Handler Options
@@ -283,7 +333,7 @@ This is a good way to provide color to your console by using ANSI color commands
 See http://en.wikipedia.org/wiki/ANSI_escape_code
 
 - writemessage( TEXT ) 
-- writeresult( TEXT ) 
+- writeresponse( TEXT ) 
 - writeerror( TEXT ) 
 
 .. code:: python
@@ -343,7 +393,7 @@ Short Example
          Echo text back to the console.
          
          '''
-         self.writeresult( ' '.join(params) )
+         self.writeresponse( ' '.join(params) )
  
      @command('timer')
      def command_timer(self, params):
@@ -361,12 +411,151 @@ Short Example
          except ValueError:
              self.writeerror( "Need both a time and a message" )
              return
-         self.writeresult("Waiting %d seconds...", time)
+         self.writeresponse("Waiting %d seconds...", time)
          gevent.spawn_later(time, self.writemessage, message)
  
  
  server = gevent.server.StreamServer(("", 8023), MyTelnetHandler.streamserver_handle)
- server.server_forever()
+ server.serve_forever()
+
+
+SSH
+---
+
+If the paramiko library is installed, the TelnetHanlder can be used via an SSH server for significantly
+improved security.  ``paramiko_ssh`` contains ``SSHHandler`` and ``getRsaKeyFile`` to make setting
+up the server trivial.  Since the authentication is done prior to invoking the TelnetHandler,
+any ``authCallback`` defined in the TelnetHandler is ignored.
+
+Green
++++++
+
+If using the green version of the TelnetHandler, you must use Gevent's monkey patch_all prior to
+importing from ``paramiko_ssh``.
+
+.. code:: python
+
+    from gevent import monkey; monkey.patch_all()
+    from telnetsrv.paramiko_ssh import SSHHandler, getRsaKeyFile
+
+
+Operation Overview
+++++++++++++++++++
+
+The SocketServer/StreamServer sets up the socket then passes that to an SSHHandler class which 
+authenticates then starts the SSH transport.  Within the SSH transport, the client requests a PTY channel
+(and possibly other channel types, which are denied) and the SSHHandler sets up a TelnetHandler class 
+as the PTY for the channel.  If the client never requests a PTY channel, the transport will disconnect
+after a timeout.
+
+SSH Host Key
+++++++++++++
+
+To thwart man-in-the-middle attacks, every SSH server provides an RSA key as a unique fingerprint.  This unique key
+should never change, and should be stored in a local file or a database.  The ``getRsaKeyFile`` makes this
+easy by reading the given key file if it exists, or creating the key if it does not.  The result should be
+read once and set in the class definition.
+
+Easy way:
+
+``host_key = getRsaKeyFile( FILENAME )``
+
+  If the FILENAME can be read, the RSA key is read in and returned as an RSAKey object.  
+  If the file can't be read, it generates a new RSA key and stores it in that file.
+
+Long way:
+
+.. code:: python
+
+   from paramiko_ssh import RSAKey
+   
+   # Make a new key - should only be done once per server during setup
+   new_key = RSAKey.generate(1024)
+   save_to_my_database( 'server_fingerprint',  str(new_key) )
+   
+   ...
+   
+   host_key = RSAKey( data=get_from_my_database('server_fingerprint') )
+   
+
+SSH Authentication
+++++++++++++++++++
+
+Users can authenticate with just a username, a username/publickey or a username/password.  Up to three callbacks
+can be defined, and if all three are defined, all three will be tried before denying the authentication attempt.
+An SSH client will always provide a username.  If no ``authCallbackXX`` is defined, the SSH authentication will be
+set to "none" and any username will be able to log in.
+
+``authCallbackUsername(self, username)``
+  Reference to username-only authentication function.  Define this function to permit specific usernames
+  to log in without any futher authentication.  Raise any exception to deny this authentication attempt.
+  
+  If defined, this is always tried first.
+  
+  Default: None
+
+``authCallbackKey(self, username, key)``
+  Reference to username/key authentication function.  If this is defined,
+  users can log in the SSH client automatically with a key.  Raise any exception to deny this authentication attempt.
+  
+  Default: None
+  
+``authCallback(self, username, password)`` 
+  Reference to username/password authentication function. If
+  this is defined, a password is requested. Raise any exception to deny this authentication attempt.
+  
+  If defined, this is always tried last.
+  
+  Default: None
+
+  
+SSHHandler uses Paramiko's ServerInterface as one of its base classes.  If you are familiar with Paramiko, feel free
+to instead override the authentication callbacks as needed.
+
+
+Short SSH Example
++++++++++++++++++
+
+.. code:: python
+
+ from gevent import monkey; monkey.patch_all()
+ import gevent.server
+ from telnetsrv.paramiko_ssh import SSHHandler, getRsaKeyFile
+ from telnetsrv.green import TelnetHandler, command
+ 
+ class MyTelnetHandler(TelnetHandler):
+     WELCOME = "Welcome to my server."
+     
+     @command(['echo', 'copy', 'repeat'])
+     def command_echo(self, params):
+         '''<text to echo>
+         Echo text back to the console.
+         
+         '''
+         self.writeresponse( ' '.join(params) ) 
+ 
+ class MySSHHandler(SSHHandler):
+     host_key = getRsaKeyFile('server_fingerprint.key') 
+     telnet_handler = MyTelnetHandler
+     
+     def authCallbackUsername(self, username):
+         # These users do not require a password
+         if username not in ['john', 'eric', 'terry', 'graham']:
+            raise RuntimeError('Not a Python')
+ 
+     def authCallback(self, username, password):
+         # Super sekrit password:
+         if password != 'concord':
+            raise RuntimeError('Wrong password!')
+ 
+ # Start a telnet server for the localhost
+ telnetserver = gevent.server.StreamServer(('127.0.0.1', 8023), MyTelnetHandler.streamserver_handle)
+ telnetserver.start()
+ 
+ # Start an SSH server for any remote host
+ sshserver = gevent.server.StreamServer(("", 8022), MySSHHandler.streamserver_handle)
+ sshserver.serve_forever()
+
 
 Longer Example
 --------------
