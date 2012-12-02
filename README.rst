@@ -44,6 +44,7 @@ or
  pip install telnetsrv
 
 Note that there are no dependancies defined, but if you want to use the green version, you must also install gevent.
+If you wish to use the SSH server, you must also install paramiko.
 
 To Use
 ------
