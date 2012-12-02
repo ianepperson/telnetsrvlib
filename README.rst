@@ -259,7 +259,7 @@ Higher level functions:
 
 ``self.writeerror( TEXT )`` - to emit error messages
 
-The writemessage method is intended to send messages to the console without
+The ``writemessage`` method is intended to send messages to the console without
 interrupting any current input.  If the user has entered text at the prompt, 
 the prompt and text will be seamlessly regenerated following the message.  
 It is ideal for asynchronous messages that aren't generated from the direct user input.
@@ -272,12 +272,15 @@ Receive Text from the Client
 Setting the prompt is important to recreate the user input following a ``writemessage``
 interruption.
 
-When requesting sensative information from the user (such as requesting a password) the input should
-not be shown nor should it have access to or be written to the command history.  ``readline`` accepts
-two optional parameters to control this, ``echo`` and ``user_history``.
+When requesting sensitive information from the user (such as requesting a new password) the input should
+not be shown nor should the input line be written to the command history.  ``readline`` accepts
+two optional parameters to control this, ``echo`` and ``use_history``.
 
 ``self.readline( prompt=TEXT, echo=False, use_history=False )``
 
+When ``echo`` is set to False, the input will not echo back to the user.  When ``use_history`` is set 
+to False, the user will not have access to the command history (up arrow) nor will the entered data
+be stored in the command history.
 
 Handler Options
 ---------------
