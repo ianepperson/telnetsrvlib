@@ -7,7 +7,7 @@ def readme():
 setup(
     name = "telnetsrv",
     packages = ["telnetsrv"],
-    version = "0.3.1",
+    version = "0.4",
     description = "Telnet server handler library",
     long_description = readme(),
     author = "Ian Epperson",
@@ -24,6 +24,8 @@ setup(
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Communications",
         "Topic :: Communications :: BBS",
+        "Topic :: System :: Shells",
+        "Topic :: Terminals",
         "Topic :: Terminals :: Telnet",
         ],
 )
