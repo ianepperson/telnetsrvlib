@@ -90,7 +90,7 @@ this also creates an ``echo`` command:
   def cmdECHO(self, params):
      ...
 
-*This method is less flexible and may not be supported in future releases.*
+*This method is less flexible and may not be supported in future versions.*
 
 Command Parameters
 ++++++++++++++++++
@@ -459,7 +459,6 @@ read once and set in the class definition.
 Easy way:
 
 ``host_key = getRsaKeyFile( FILENAME )``
-
   If the FILENAME can be read, the RSA key is read in and returned as an RSAKey object.  
   If the file can't be read, it generates a new RSA key and stores it in that file.
 
@@ -535,24 +534,27 @@ Short SSH Example
          self.writeresponse( ' '.join(params) ) 
  
  class MySSHHandler(SSHHandler):
+     # Set the unique host key
      host_key = getRsaKeyFile('server_fingerprint.key') 
+     
+     # Instruct this SSH handler to use MyTelnetHandler for any PTY connections
      telnet_handler = MyTelnetHandler
      
      def authCallbackUsername(self, username):
          # These users do not require a password
          if username not in ['john', 'eric', 'terry', 'graham']:
-            raise RuntimeError('Not a Python')
+            raise RuntimeError('Not a Python!')
  
      def authCallback(self, username, password):
-         # Super sekrit password:
+         # Super secret password:
          if password != 'concord':
             raise RuntimeError('Wrong password!')
  
- # Start a telnet server for the localhost
+ # Start a telnet server for just the localhost on port 8023.  (Will not request any authentication.)
  telnetserver = gevent.server.StreamServer(('127.0.0.1', 8023), MyTelnetHandler.streamserver_handle)
  telnetserver.start()
  
- # Start an SSH server for any remote host
+ # Start an SSH server for any local or remote host on port 8022
  sshserver = gevent.server.StreamServer(("", 8022), MySSHHandler.streamserver_handle)
  sshserver.serve_forever()
 
