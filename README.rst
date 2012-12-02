@@ -7,10 +7,11 @@ Copied from http://pytelnetsrvlib.sourceforge.net/
 and modified to support gevent, better input handling, clean asynchronous messages and much more.
 Licensed under the LGPL, as per the SourceForge notes.
 
-This library allows you to easily create a Telnet server, powered by your Python code.
+This library allows you to easily create a Telnet or SSH server powered by your Python code.
 The library negotiates with a Telnet client, parses commands, provides an automated 
 help command, optionally provides login queries, then allows you to define your own
-commands.
+commands.  An optional SSH handler is provided to wrap the defined Telnet handler into
+an SSH handler.
 
 You use the library to create your own handler, then pass that handler to a StreamServer
 or TCPServer to perform the actual connection tasks.
