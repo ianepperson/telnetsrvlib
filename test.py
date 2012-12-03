@@ -41,8 +41,6 @@ else:
         TELNET_IP_BINDING = '0.0.0.0'
 
 
-TelnetHandler.logging = logging
-
 
 # The TelnetHandler instance is re-created for each connection.
 # Therfore, in order to store data between connections, create
@@ -129,7 +127,7 @@ class TestTelnetHandler(TelnetHandler):
     @command('params')
     def command_params(self, params):
         '''[<params>]*
-        Echos back the raw recevied parameters.
+        Echos back the raw received parameters.
         '''
         self.writeresponse("params == %r" % params)
 
@@ -172,6 +170,28 @@ class TestTelnetHandler(TelnetHandler):
         # by defining a session_end method to ensure lingering threads don't
         # eat up resources and/or throw errors at strange times.
 
+    @command('passwd')
+    def command_set_password(self, params):
+        '''[<password>]
+        Pretends to set a console password.
+        Pretends to set a console password.
+        Demonostrates how sensative information may be handled
+        '''
+        try:
+            password = params[0]
+        except:
+            password = self.readline(prompt="New Password: ", echo=False, use_history=False)
+        else:
+            # If the password was a parameter, it will have been stored in the history.
+            # snip it out to prevent easy snooping
+            self.history[-1] = 'passwd'
+            
+        password2 = self.readline(prompt="Retype New Password: ", echo=False, use_history=False)
+        if password == password2:
+            self.writeresponse('Pretending to set new password, but not really.')
+        else:
+            self.writeerror('Passwords don\'t match.')
+        
     
     # Older method of defining a command
     # must start with "cmd" and end wtih the command name.
