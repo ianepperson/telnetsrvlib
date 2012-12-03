@@ -29,12 +29,22 @@ import traceback
 import curses.ascii
 import curses.has_key
 import curses
-#import logging
+import logging
 import re
 #if not hasattr(socket, 'SHUT_RDWR'):
 #    socket.SHUT_RDWR = 2
 
+log = logging.getLogger(__name__)
+
 BELL = chr(7)
+ESC  = chr(27)
+ANSI_START_SEQ = '['
+ANSI_KEY_TO_CURSES = {
+    'A': curses.KEY_UP,
+    'B': curses.KEY_DOWN,
+    'C': curses.KEY_RIGHT,
+    'D': curses.KEY_LEFT,
+    }
 
 IAC  = chr(255) # "Interpret As Command"
 DONT = chr(254)
@@ -177,17 +187,6 @@ CMDS = {
     NEW_ENVIRON: 'New - Environment variables',
 }
 
-class dummylogger(object):
-    def debug(self, *kargs, **kwargs):
-        pass
-    def info(self, *kargs, **kwargs):
-        pass
-    def warn(self, *kargs, **kwargs):
-        pass
-    def error(self, *kargs, **kwargs):
-        pass
-    def exception(self, *kargs, **kwargs):
-        pass
 
 
 class command():
@@ -377,10 +376,7 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
     # properly made concrete.  
     # (abc doesn't like the BaseRequestHandler - sigh)
     #__metaclass__ = ABCMeta    
-    
-    # Override as necessary
-    logging = dummylogger()
-    
+        
     # What I am prepared to do?
     DOACK = {
         ECHO: WILL,
@@ -490,12 +486,12 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
         request = cls.false_request()
         request._sock = socket
         server = None
-        cls.logging.debug("Accepted connection, starting telnet session.")
+        log.debug("Accepted connection, starting telnet session.")
         cls(request, address, server)
 
     def setterm(self, term):
         "Set the curses structures for this terminal"
-        self.logging.debug("Setting termtype to %s" % (term, ))
+        log.debug("Setting termtype to %s" % (term, ))
         curses.setupterm(term) # This will raise if the termtype is not supported
         self.TERM = term
         self.ESCSEQ = {}
@@ -503,6 +499,8 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
             str = curses.tigetstr(curses.has_key._capability_names[k])
             if str:
                 self.ESCSEQ[str] = k
+        # Create a copy to prevent altering the class
+        self.CODES = self.CODES.copy()
         self.CODES['DEOL'] = curses.tigetstr('el')
         self.CODES['DEL'] = curses.tigetstr('dch1')
         self.CODES['INS'] = curses.tigetstr('ich1')
@@ -514,7 +512,8 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
         try:
             self.TERM = self.request.term
         except:
-            self.setterm(self.TERM)
+            pass
+        self.setterm(self.TERM)
         self.sock = self.request._sock
         for k in self.DOACK.keys():
             self.sendcommand(self.DOACK[k], k)
@@ -524,7 +523,7 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
 
     def finish(self):
         "End this session"
-        self.logging.debug("Session disconnected.")
+        log.debug("Session disconnected.")
         self.sock.shutdown(socket.SHUT_RDWR)
         self.session_end()
 
@@ -560,11 +559,11 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
                 try:
                     self.setterm(subreq[2:])
                 except:
-                    logging.debug("Terminal type not known")
+                    log.debug("Terminal type not known")
         elif cmd == SB:
             pass
         else:
-            logging.debug("Unhandled option: %s %s" % (cmdtxt, opttxt, ))
+            log.debug("Unhandled option: %s %s" % (cmdtxt, opttxt, ))
 
     def sendcommand(self, cmd, opt=None):
         "Send a telnet command (IAC)"
@@ -621,6 +620,25 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
     _current_line = ''
     _current_prompt = ''
     
+    def ansi_to_curses(self, char):
+        '''Handles reading ANSI escape sequences'''
+        # ANSI sequences are:
+        # ESC [ <key>
+        # If we see ESC, read a char
+        if char != ESC:
+            return char
+        # If we see [, read another char
+        if self.getc(block=True) != ANSI_START_SEQ:
+            self._readline_echo(BELL, True)
+            return theNULL
+        key = self.getc(block=True)
+        # Translate the key to curses
+        try:
+            return ANSI_KEY_TO_CURSES[key]
+        except:
+            self._readline_echo(BELL, True)
+            return theNULL     
+    
     def readline(self, echo=None, prompt='', use_history=True):
         """Return a line of text, including the terminating LF
            If echo is true always echo, if echo is false never echo
@@ -631,6 +649,7 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
         
         line = []
         insptr = 0
+        ansi = 0
         histptr = len(self.history)
             
         if self.DOECHO:
@@ -643,8 +662,10 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
         
         while True:
             c = self.getc(block=True)
+            c = self.ansi_to_curses(c)
             if c == theNULL:
                 continue
+            
             elif c == curses.KEY_LEFT:
                 if insptr > 0:
                     insptr = insptr - 1
@@ -695,9 +716,16 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
                 return 'QUIT'
             elif c == chr(10):
                 self._readline_echo(c, echo)
+                result = ''.join(line)
                 if use_history:
-                    self.history.append(''.join(line))
-                return ''.join(line)
+                    self.history.append(result)
+                if echo is False:
+                    if prompt:
+                        self.write( chr(10) )
+                    log.debug('readline: %s(hidden text)', prompt)
+                else:
+                    log.debug('readline: %s%r', prompt, result)
+                return result
             elif c == curses.KEY_BACKSPACE or c == chr(127) or c == chr(8):
                 if insptr > 0:
                     self._readline_echo(self.CODES['CSRLEFT'] + self.CODES['DEL'], echo)
@@ -743,10 +771,12 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
 
     def writeline(self, text):
         """Send a packet with line ending."""
+        log.debug('writing line %r' % text)
         self.write(text+chr(10))
 
     def writemessage(self, text):
         """Write out an asynchronous message, then reconstruct the prompt and entered text."""
+        log.debug('writing message %r', text)
         self.write(chr(10)+text+chr(10))
         self.write(self._current_prompt+''.join(self._current_line))
 
@@ -991,13 +1021,13 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
                     try:
                         self.COMMANDS[cmd](params)
                     except:
-                        self.logging.exception('Error calling %s.' % cmd)
+                        log.exception('Error calling %s.' % cmd)
                         (t, p, tb) = sys.exc_info()
                         if self.handleException(t, p, tb):
                             break
                 else:
                     self.writeerror("Unknown command '%s'" % cmd)
-        self.logging.debug("Exiting handler")
+        log.debug("Exiting handler")
 
 
 
