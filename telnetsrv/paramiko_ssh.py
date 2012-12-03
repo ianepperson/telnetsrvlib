@@ -1,3 +1,4 @@
+import logging
 #from binascii import hexlify
 from threading import Thread
 from SocketServer import BaseRequestHandler
@@ -8,11 +9,13 @@ from paramiko import Transport, ServerInterface, RSAKey, DSSKey, SSHException, \
                     OPEN_FAILED_UNKNOWN_CHANNEL_TYPE, OPEN_FAILED_RESOURCE_SHORTAGE
 
 
+log = logging.getLogger(__name__)
+
 def getRsaKeyFile(filename, password=None):
     try:
         key = RSAKey(filename=filename, password=password)
     except IOError:
-        print 'Generating new server RSA key.'
+        log.info('Generating new server RSA key and saving in file %r.' % filename)
         key = RSAKey.generate(1024)
         key.write_private_key_file(filename, password=password)
     return key
@@ -67,25 +70,26 @@ class SSHHandler(ServerInterface, BaseRequestHandler):
     
     def setup(self):
         '''Setup the connection.'''
-        print 'New request from address %s, port %d' % self.client_address
+        log.debug( 'New request from address %s, port %d',  self.client_address )
         
         try:
             self.transport.load_server_moduli()
         except:
-            print '(Failed to load moduli -- gex will be unsupported.)'
+            log.exception( '(Failed to load moduli -- gex will be unsupported.)' )
             raise
         try:
             self.transport.add_server_key(self.host_key)
         except:
             if self.host_key is None:
+                log.critical('Host key not set!  SSHHandler MUST define the host_key parameter.')
                 raise NotImplementedError('Host key not set!  SSHHandler instance must define the host_key parameter.  Try host_key = paramiko_ssh.getRsaKeyFile("server_rsa.key").')
         
         try:
             # Tell transport to use this object as a server
-            print 'Starting SSH server-side negotiation'
+            log.debug( 'Starting SSH server-side negotiation' )
             self.transport.start_server(server=self)
         except SSHException, e:
-           print('SSH negotiation failed. %s' % e)
+           log.warn('SSH negotiation failed. %s', e)
            raise
         
         # Accept any requested channels
@@ -101,7 +105,7 @@ class SSHHandler(ServerInterface, BaseRequestHandler):
                 if not any_running:
                     break
             else:
-                print 'Accepted channel %s' % channel
+                log.info( 'Accepted channel %s', channel )
                 #raise RuntimeError('No channel requested.')
 
         
@@ -131,6 +135,7 @@ class SSHHandler(ServerInterface, BaseRequestHandler):
 
     def set_username(self, username):
         self.username = username
+        log.info('User logged in: %s' % username)
 
     ######  Handle User Authentication ######
     
@@ -151,7 +156,8 @@ class SSHHandler(ServerInterface, BaseRequestHandler):
         if methods == []:
             # If no methods were defined, use none
             methods.append('none')
-            
+        
+        log.debug('Configured authentication methods: %r', methods)    
         return ','.join(methods)
 
     def check_auth_password(self, username, password):
@@ -196,7 +202,7 @@ class SSHHandler(ServerInterface, BaseRequestHandler):
         try:
             self.channels[channel].start()
         except KeyError:
-            print 'Error, requested to start a channel that was not set up.'
+            log.error('Requested to start a channel (%r) that was not previously set up.', channel)
             return False
         else:
             return True
@@ -206,6 +212,7 @@ class SSHHandler(ServerInterface, BaseRequestHandler):
         '''Request to allocate a PTY terminal.'''
         #self.sshterm = term
         #print "term: %r, modes: %r" % (term, modes)
+        log.debug('PTY requested.  Setting up %r.', self.telnet_handler)
         pty_thread = Thread( target=self.start_pty_request, args=(channel, term, modes) )
         self.channels[channel] = pty_thread
         

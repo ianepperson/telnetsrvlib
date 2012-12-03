@@ -287,9 +287,6 @@ Handler Options
 
 Override these class members to change the handler's behavior.
 
-``logging``
-  Default: pass
-
 ``PROMPT``
   Default: ``"Telnet Server> "``
     
