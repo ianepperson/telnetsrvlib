@@ -8,6 +8,10 @@ setup(
     name = "telnetsrv",
     packages = ["telnetsrv"],
     version = "0.4",
+    extras_require = {
+        'green': ['gevent'],
+        'ssh': ['paramiko'],
+        },
     description = "Telnet server handler library",
     long_description = readme(),
     author = "Ian Epperson",
