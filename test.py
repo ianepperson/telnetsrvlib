@@ -102,6 +102,21 @@ class TestTelnetHandler(TelnetHandler):
         self.writeline('Hello %s!' % self.username)
         self.writeline('You are connection #%d, you have logged in %s time(s).' % (globalcount, usercount))
         
+        # Track any asyncronous events registered with the timer command
+        self.timer_events = []
+    
+    def session_end(self):
+        '''Called after the user logs off.'''
+        
+        # Cancel any pending timer events.  Done a bit different between Greenlets and threads
+        if SERVERTYPE == 'green':
+            for event in self.timer_events:
+                event.kill()
+
+        if SERVERTYPE == 'threaded':
+            for event in self.timer_events:
+                event.cancel()
+        
     def writeerror(self, text):
         '''Called to write any error information (like a mistyped command).
         Add a splash of color using ANSI to render the error text in red.
@@ -160,15 +175,14 @@ class TestTelnetHandler(TelnetHandler):
         self.writeresponse("Waiting %d seconds..." % delay)
         
         if SERVERTYPE == 'green':
-            gevent.spawn_later(delay, self.writemessage, message)
+            event = gevent.spawn_later(delay, self.writemessage, message)
 
         if SERVERTYPE == 'threaded':
-            timer = threading.Timer(delay, self.writemessage, args=[message])
-            timer.start()
+            event = threading.Timer(delay, self.writemessage, args=[message])
+            event.start()
         
-        # A real server should deal with this thread when the console closed
-        # by defining a session_end method to ensure lingering threads don't
-        # eat up resources and/or throw errors at strange times.
+        # Used by session_end to stop all timer events when the user logs off.
+        self.timer_events.append(event)
 
     @command('passwd')
     def command_set_password(self, params):
