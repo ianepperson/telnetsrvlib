@@ -4,7 +4,7 @@ telnetsrvlib
 Telnet server using gevent or threading.
 
 Copied from http://pytelnetsrvlib.sourceforge.net/
-and modified to support gevent, better input handling, clean asynchronous messages and much more.
+and modified to support gevent and eventlet, better input handling, clean asynchronous messages and much more.
 Licensed under the LGPL, as per the SourceForge notes.
 
 This library allows you to easily create a Telnet or SSH server powered by your Python code.
@@ -17,7 +17,7 @@ You use the library to create your own handler, then pass that handler to a Stre
 or TCPServer to perform the actual connection tasks.
 
 This library includes two flavors of the server handler, one uses separate threads,
-the other uses greenlets (green pseudo-threads) via gevent.
+the other uses greenlets (green pseudo-threads) via gevent or eventlet.
 
 The threaded version uses a separate thread to process the input buffer and
 semaphores reading and writing.  The provided test server only handles a single
@@ -43,13 +43,13 @@ or
 
  pip install telnetsrv
 
-Note that there are no dependancies defined, but if you want to use the green version, you must also install gevent.
+Note that there are no dependancies defined, but if you want to use the green version, you must also install gevent or eventlet.
 If you wish to use the SSH server, you must also install paramiko.
 
 To Use
 ------
 
-Import the ``TelnetHandler`` base class and ``command`` function decorator from either the green class or threaded class, 
+Import the ``TelnetHandler`` base class and ``command`` function decorator from either the green class, evtlet class or threaded class,
 then subclass ``TelnetHandler`` to add your own commands which are methods decorated with ``@command``.  
 
 Threaded
@@ -67,6 +67,15 @@ Green
 .. code:: python
 
  from telnetsrv.green import TelnetHandler, command
+ class MyHandler(TelnetHandler):
+    ...
+
+Eventlet
+++++++++
+
+.. code:: python
+
+ from telnetsrv.evtlet import TelnetHandler, command
  class MyHandler(TelnetHandler):
     ...
 
@@ -439,6 +448,18 @@ importing from ``paramiko_ssh``.
 
     from gevent import monkey; monkey.patch_all()
     from telnetsrv.paramiko_ssh import SSHHandler, getRsaKeyFile
+
+Eventlet
+++++++++
+
+If using the eventlet version of the TelnetHandler, you must use Eventlet's monkey patch_all prior to
+importing from ``paramiko_ssh``.
+
+.. code:: python
+
+    import eventlet; eventlet.monkey_patch(all=True)
+    from telnetsrv.paramiko_ssh import SSHHandler, getRsaKeyFile
+
 
 
 Operation Overview
