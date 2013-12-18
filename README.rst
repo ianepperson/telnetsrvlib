@@ -217,6 +217,12 @@ These will be provided for inspection.
 
 ``TERM``
   String ID describing the currently connected terminal
+
+``WIDTH``
+  Integer describing the width of the terminal at connection time.
+
+``HEIGHT``
+  Integer describing the height of the terminal at connection time.
   
 ``username``
   Set after authentication succeeds, name of the logged in user.
@@ -234,6 +240,7 @@ These will be provided for inspection.
         Provides some information about the current terminal.
         '''
         self.writeresponse( "Username: %s, terminal type: %s" % (self.username, self.TERM) )
+        self.writeresponse( "Width: %s, height: %s" % (self.WIDTH, self.HEIGHT) )
         self.writeresponse( "Command history:" )
         for c in self.history:
             self.writeresponse("  %r" % c)
@@ -375,7 +382,7 @@ others).
 
  import gevent.server
  server = gevent.server.StreamServer(("", 8023), MyHandler.streamserver_handle)
- server.server_forever()
+ server.serve_forever()
 
 
 Short Example
