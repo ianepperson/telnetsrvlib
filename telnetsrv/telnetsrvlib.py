@@ -24,13 +24,13 @@ Various settings can affect the operation of the server:
 
 import SocketServer
 import socket
+import struct
 import sys
 import traceback
 import curses.ascii
 import curses.has_key
 import curses
 import logging
-import re
 #if not hasattr(socket, 'SHUT_RDWR'):
 #    socket.SHUT_RDWR = 2
 
@@ -489,6 +489,12 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
         log.debug("Accepted connection, starting telnet session.")
         cls(request, address, server)
 
+    def setnaws(self, naws):
+        ''' Set width and height of the terminal on initial connection'''
+        self.WIDTH = struct.unpack('>h', naws[0:2])[0]
+        self.HEIGHT = struct.unpack('>h', naws[2:4])[0]
+        log.debug("Set width to %s and height to %s" % (self.WIDTH, self.HEIGHT))
+
     def setterm(self, term):
         "Set the curses structures for this terminal"
         log.debug("Setting termtype to %s" % (term, ))
@@ -560,6 +566,8 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
                     self.setterm(subreq[2:])
                 except:
                     log.debug("Terminal type not known")
+            elif subreq[0] == NAWS:
+                self.setnaws(subreq[1:])
         elif cmd == SB:
             pass
         else:
