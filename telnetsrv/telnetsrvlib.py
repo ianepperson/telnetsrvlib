@@ -431,6 +431,12 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
     # What will handle our inputs?
     #input_reader = InputSimple
     input_reader = InputBashLike
+    # Banner to display prior to telnet login
+    TELNET_BANNER = None
+    # What prompt to use when requesting a telnet username
+    PROMPT_USER = "Username: "
+    # What prompt to use when requesting a telnet password
+    PROMPT_PASS = "Password: "
 
 # --------------------------- Environment Setup ----------------------------
 
@@ -447,6 +453,7 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
         self.DOOPTS = {}
         # What opts have I sent WILL/WONT for and what did I send?
         self.WILLOPTS = {}
+
         # What commands does this CLI support
         self.COMMANDS = {}
         self.sock = None    # TCP socket
@@ -991,9 +998,9 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
         password = None
         if self.authCallback:
             if self.authNeedUser:
-                username = self.readline(prompt="Username: ", use_history=False)
+                username = self.readline(prompt=self.PROMPT_USER, use_history=False)
             if self.authNeedPass:
-                password = self.readline(echo=False, prompt="Password: ", use_history=False)
+                password = self.readline(echo=False, prompt=self.PROMPT_PASS, use_history=False)
                 if self.DOECHO:
                     self.write("\n")
             try:
@@ -1013,10 +1020,13 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
 
     def handle(self):
         "The actual service to which the user has connected."
+        if self.TELNET_BANNER:
+            self.writeline(self.TELNET_BANNER)
         if not self.authentication_ok():
             return
         if self.DOECHO:
             self.writeline(self.WELCOME)
+        self.writeline("ok..")
         self.session_start()
         while self.RUNSHELL:
             raw_input = self.readline(prompt=self.PROMPT).strip()
