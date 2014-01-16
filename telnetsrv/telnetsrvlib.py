@@ -432,7 +432,7 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
     #input_reader = InputSimple
     input_reader = InputBashLike
     # Banner to display prior to telnet login
-    TELNET_BANNER = None
+    TELNET_ISSUE = None
     # What prompt to use when requesting a telnet username
     PROMPT_USER = "Username: "
     # What prompt to use when requesting a telnet password
@@ -1020,7 +1020,7 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
 
     def handle(self):
         "The actual service to which the user has connected."
-        if self.TELNET_BANNER:
+        if self.TELNET_ISSUE:
             self.writeline(self.TELNET_ISSUE)
         if not self.authentication_ok():
             return
