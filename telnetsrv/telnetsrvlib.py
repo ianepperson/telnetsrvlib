@@ -1021,7 +1021,7 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
     def handle(self):
         "The actual service to which the user has connected."
         if self.TELNET_BANNER:
-            self.writeline(self.TELNET_BANNER)
+            self.writeline(self.TELNET_ISSUE)
         if not self.authentication_ok():
             return
         if self.DOECHO:
