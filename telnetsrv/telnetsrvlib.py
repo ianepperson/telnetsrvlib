@@ -909,7 +909,7 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
                     self.iacseq = ''
                     if cmd in (DO, DONT, WILL, WONT):
                         self.options_handler(self.sock, cmd, c)
-        except EOFError:
+        except (EOFError, socket.error):
             pass
 
 # ------------------------------- Basic Commands ---------------------------
