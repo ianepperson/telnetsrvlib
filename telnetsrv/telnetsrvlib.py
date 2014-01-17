@@ -488,19 +488,16 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
             self.sock = None
     
     @classmethod
-    def streamserver_handle(cls, socket, address):
+    def streamserver_handle(cls, sock, address):
         '''Translate this class for use in a StreamServer'''
         request = cls.false_request()
-        request._sock = socket
+        request._sock = sock
         server = None
         log.debug("Accepted connection, starting telnet session.")
-        cls(request, address, server)
-
-    def setnaws(self, naws):
-        ''' Set width and height of the terminal on initial connection'''
-        self.WIDTH = struct.unpack('>h', naws[0:2])[0]
-        self.HEIGHT = struct.unpack('>h', naws[2:4])[0]
-        log.debug("Set width to %s and height to %s" % (self.WIDTH, self.HEIGHT))
+        try:
+            cls(request, address, server)
+        except socket.error:
+            pass
 
     def setterm(self, term):
         "Set the curses structures for this terminal"
