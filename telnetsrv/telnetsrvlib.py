@@ -949,6 +949,9 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
             method = self.COMMANDS[cmd]
             if getattr(method, 'hidden', False):
                 continue
+            if method.__doc__ == None:
+                self.writeline("no help for command %s" % method)
+                return
             doc = method.__doc__.split("\n")
             docp = doc[0].strip()
             docs = doc[1].strip()
@@ -1023,7 +1026,7 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
             return
         if self.DOECHO:
             self.writeline(self.WELCOME)
-        self.writeline("ok..")
+
         self.session_start()
         while self.RUNSHELL:
             raw_input = self.readline(prompt=self.PROMPT).strip()
