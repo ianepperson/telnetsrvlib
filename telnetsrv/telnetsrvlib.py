@@ -431,6 +431,12 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
     # What will handle our inputs?
     #input_reader = InputSimple
     input_reader = InputBashLike
+    # Banner to display prior to telnet login
+    TELNET_ISSUE = None
+    # What prompt to use when requesting a telnet username
+    PROMPT_USER = "Username: "
+    # What prompt to use when requesting a telnet password
+    PROMPT_PASS = "Password: "
 
 # --------------------------- Environment Setup ----------------------------
 
@@ -447,6 +453,7 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
         self.DOOPTS = {}
         # What opts have I sent WILL/WONT for and what did I send?
         self.WILLOPTS = {}
+
         # What commands does this CLI support
         self.COMMANDS = {}
         self.sock = None    # TCP socket
@@ -481,19 +488,16 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
             self.sock = None
     
     @classmethod
-    def streamserver_handle(cls, socket, address):
+    def streamserver_handle(cls, sock, address):
         '''Translate this class for use in a StreamServer'''
         request = cls.false_request()
-        request._sock = socket
+        request._sock = sock
         server = None
         log.debug("Accepted connection, starting telnet session.")
-        cls(request, address, server)
-
-    def setnaws(self, naws):
-        ''' Set width and height of the terminal on initial connection'''
-        self.WIDTH = struct.unpack('>h', naws[0:2])[0]
-        self.HEIGHT = struct.unpack('>h', naws[2:4])[0]
-        log.debug("Set width to %s and height to %s" % (self.WIDTH, self.HEIGHT))
+        try:
+            cls(request, address, server)
+        except socket.error:
+            pass
 
     def setterm(self, term):
         "Set the curses structures for this terminal"
@@ -530,7 +534,9 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
     def finish(self):
         "End this session"
         log.debug("Session disconnected.")
-        self.sock.shutdown(socket.SHUT_RDWR)
+        try:
+            self.sock.shutdown(socket.SHUT_RDWR)
+        except: pass
         self.session_end()
 
     def session_start(self):
@@ -902,7 +908,7 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
                     self.iacseq = ''
                     if cmd in (DO, DONT, WILL, WONT):
                         self.options_handler(self.sock, cmd, c)
-        except EOFError:
+        except (EOFError, socket.error):
             pass
 
 # ------------------------------- Basic Commands ---------------------------
@@ -945,6 +951,9 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
             method = self.COMMANDS[cmd]
             if getattr(method, 'hidden', False):
                 continue
+            if method.__doc__ == None:
+                self.writeline("no help for command %s" % method)
+                return
             doc = method.__doc__.split("\n")
             docp = doc[0].strip()
             docs = doc[1].strip()
@@ -991,9 +1000,9 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
         password = None
         if self.authCallback:
             if self.authNeedUser:
-                username = self.readline(prompt="Username: ", use_history=False)
+                username = self.readline(prompt=self.PROMPT_USER, use_history=False)
             if self.authNeedPass:
-                password = self.readline(echo=False, prompt="Password: ", use_history=False)
+                password = self.readline(echo=False, prompt=self.PROMPT_PASS, use_history=False)
                 if self.DOECHO:
                     self.write("\n")
             try:
@@ -1013,10 +1022,13 @@ class TelnetHandlerBase(SocketServer.BaseRequestHandler):
 
     def handle(self):
         "The actual service to which the user has connected."
+        if self.TELNET_ISSUE:
+            self.writeline(self.TELNET_ISSUE)
         if not self.authentication_ok():
             return
         if self.DOECHO:
             self.writeline(self.WELCOME)
+
         self.session_start()
         while self.RUNSHELL:
             raw_input = self.readline(prompt=self.PROMPT).strip()
