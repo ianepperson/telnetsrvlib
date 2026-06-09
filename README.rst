@@ -7,8 +7,10 @@ Copied from http://pytelnetsrvlib.sourceforge.net/
 and modified to support gevent and eventlet, better input handling, clean asynchronous messages and much more.
 Licensed under the LGPL, as per the SourceForge notes.
 
+**Requires Python 3.9 or later.**
+
 This library allows you to easily create a Telnet or SSH server powered by your Python code.
-The library negotiates with a Telnet client, parses commands, provides an automated 
+The library negotiates with a Telnet client, parses commands, provides an automated
 help command, optionally provides login queries, then allows you to define your own
 commands.  An optional SSH handler is provided to wrap the defined Telnet handler into
 an SSH handler.
@@ -23,7 +25,7 @@ The threaded version uses a separate thread to process the input buffer and
 semaphores reading and writing.  The provided test server only handles a single
 connection at a time.
 
-The green version moves the input buffer processing into a greenlet to allow 
+The green version moves the input buffer processing into a greenlet to allow
 cooperative multi-processing.  This results in significantly less memory usage
 and nearly no idle processing.  The provided test server handles a large number of connections.
 
@@ -31,20 +33,18 @@ and nearly no idle processing.  The provided test server handles a large number 
 Install
 -------
 
-telnetsrv is available through the Cheeseshop.  You can use easy_install or pip to perform the installation.
-
-:: 
-
- easy_install telnetsrv
-
-or
+telnetsrv is available on PyPI and can be installed with pip:
 
 ::
 
  pip install telnetsrv
 
-Note that there are no dependancies defined, but if you want to use the green version, you must also install gevent or eventlet.
-If you wish to use the SSH server, you must also install paramiko.
+Note that there are no required dependencies beyond the Python standard library, but if you want to use the green version you must also install gevent or eventlet, and if you wish to use the SSH server you must also install paramiko:
+
+::
+
+ pip install telnetsrv[green]   # includes gevent
+ pip install telnetsrv[ssh]     # includes paramiko
 
 To Use
 ------
@@ -366,17 +366,17 @@ Serving the Handler
 Now you have a shiny new handler class, but it doesn't serve itself - it must be called
 from an appropriate server.  The server will create an instance of the TelnetHandler class
 for each new connection.  The handler class will work with either a gevent StreamServer instance
-(for the green version) or with a SocketServer.TCPServer instance (for the threaded version).
+(for the green version) or with a ``socketserver.TCPServer`` instance (for the threaded version).
 
 Threaded
 ++++++++
 
 .. code:: python
 
- import SocketServer
- class TelnetServer(SocketServer.TCPServer):
+ import socketserver
+ class TelnetServer(socketserver.TCPServer):
      allow_reuse_address = True
-    
+
  server = TelnetServer(("0.0.0.0", 8023), MyHandler)
  server.serve_forever()
 
@@ -425,12 +425,12 @@ Short Example
          '''
          try:
              timestr, message = params[:2]
-             time = int(timestr)
+             delay = int(timestr)
          except ValueError:
              self.writeerror( "Need both a time and a message" )
              return
-         self.writeresponse("Waiting %d seconds...", time)
-         gevent.spawn_later(time, self.writemessage, message)
+         self.writeresponse("Waiting %d seconds..." % delay)
+         gevent.spawn_later(delay, self.writemessage, message)
  
  
  server = gevent.server.StreamServer(("", 8023), MyTelnetHandler.streamserver_handle)
@@ -472,11 +472,11 @@ importing from ``paramiko_ssh``.
 Operation Overview
 ++++++++++++++++++
 
-The SocketServer/StreamServer sets up the socket then passes that to an SSHHandler class which 
-authenticates then starts the SSH transport.  Within the SSH transport, the client requests a PTY channel
-(and possibly other channel types, which are denied) and the SSHHandler sets up a TelnetHandler class 
-as the PTY for the channel.  If the client never requests a PTY channel, the transport will disconnect
-after a timeout.
+The ``socketserver.TCPServer`` or gevent/eventlet ``StreamServer`` sets up the socket then passes that
+to an SSHHandler class which authenticates then starts the SSH transport.  Within the SSH transport,
+the client requests a PTY channel (and possibly other channel types, which are denied) and the
+SSHHandler sets up a TelnetHandler class as the PTY for the channel.  If the client never requests
+a PTY channel, the transport will disconnect after a timeout.
 
 SSH Host Key
 ++++++++++++
@@ -496,7 +496,7 @@ Long way:
 
 .. code:: python
 
-   from paramiko_ssh import RSAKey
+   from paramiko import RSAKey
    
    # Make a new key - should only be done once per server during setup
    new_key = RSAKey.generate(1024)

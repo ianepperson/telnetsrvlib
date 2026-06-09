@@ -3,10 +3,12 @@
 
 import eventlet
 
-from telnetsrvlib import TelnetHandlerBase, command
+from .telnetsrvlib import TelnetHandlerBase, command  # noqa: F401
+
 
 class TelnetHandler(TelnetHandlerBase):
-    "A telnet server handler using Gevent"
+    "A telnet server handler using Eventlet"
+
     def __init__(self, request, client_address, server):
         # Create a green queue for input handling
         self.cookedq = eventlet.queue.Queue()
@@ -14,7 +16,7 @@ class TelnetHandler(TelnetHandlerBase):
         TelnetHandlerBase.__init__(self, request, client_address, server)
 
     def setup(self):
-        '''Called after instantiation'''
+        """Called after instantiation"""
         TelnetHandlerBase.setup(self)
         # Spawn a greenlet to handle socket input
         self.greenlet_ic = eventlet.spawn(self.inputcooker)
@@ -24,11 +26,10 @@ class TelnetHandler(TelnetHandlerBase):
         eventlet.sleep(0.5)
 
     def finish(self):
-        '''Called as the session is ending'''
+        """Called as the session is ending"""
         TelnetHandlerBase.finish(self)
         # Ensure the greenlet is dead
         self.greenlet_ic.kill()
-
 
     # -- Green input handling functions --
 
@@ -37,22 +38,16 @@ class TelnetHandler(TelnetHandlerBase):
         try:
             return self.cookedq.get(block)
         except eventlet.queue.Empty:
-            return ''
+            return ""
 
     def inputcooker_socket_ready(self):
         """Indicate that the socket is ready to be read"""
-        return eventlet.select.select(
-            [self.sock.fileno()],
-            [],
-            [],
-            0
-        ) != ([], [], [])
+        return eventlet.select.select([self.sock.fileno()], [], [], 0) != ([], [], [])
 
     def inputcooker_store_queue(self, char):
         """Put the cooked data in the input queue (no locking needed)"""
-        if type(char) in [type(()), type([]), type("")]:
+        if isinstance(char, (tuple, list, str)):
             for v in char:
                 self.cookedq.put(v)
         else:
             self.cookedq.put(char)
-
