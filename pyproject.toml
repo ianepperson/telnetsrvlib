@@ -1,0 +1,70 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "telnetsrv"
+version = "0.4"
+description = "Telnet server handler library"
+readme = "README.rst"
+requires-python = ">=3.9"
+authors = [
+    {name = "Ian Epperson", email = "ian@epperson.com"},
+]
+keywords = ["gevent", "telnet", "server"]
+classifiers = [
+    "Programming Language :: Python",
+    "Development Status :: 4 - Beta",
+    "Environment :: Other Environment",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Communications",
+    "Topic :: Communications :: BBS",
+    "Topic :: System :: Shells",
+    "Topic :: Terminals",
+    "Topic :: Terminals :: Telnet",
+]
+
+[project.urls]
+Homepage = "https://github.com/ianepperson/telnetsrvlib"
+
+[project.optional-dependencies]
+green = ["gevent"]
+ssh = ["paramiko"]
+
+[dependency-groups]
+dev = [
+    "black>=24.0",
+    "flake8>=7.0",
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["telnetsrv"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "telnetsrv/",
+    "README.rst",
+    "COPYING.txt",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--tb=short -q"
+
+[tool.coverage.run]
+source = ["telnetsrv"]
+branch = true
+omit = [
+    "telnetsrv/green.py",
+    "telnetsrv/evtlet.py",
+    "telnetsrv/paramiko_ssh.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
