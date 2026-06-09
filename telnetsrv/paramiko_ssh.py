@@ -61,7 +61,8 @@ class SSHHandler(ServerInterface, BaseRequestHandler):
         # Keep track of channel information from the transport
         self.channels = {}
 
-        self.client = request._sock
+        # TCPServer passes the raw socket; streamserver_handle wraps it in dummy_request
+        self.client = getattr(request, "_sock", request)
         # Transport turns the socket into an SSH transport
         self.transport = Transport(self.client)
 
@@ -80,7 +81,7 @@ class SSHHandler(ServerInterface, BaseRequestHandler):
 
     def setup(self):
         """Setup the connection."""
-        log.debug("New request from address %s, port %d", self.client_address)
+        log.debug("New request from address %s, port %d", *self.client_address)
 
         try:
             self.transport.load_server_moduli()
@@ -229,7 +230,7 @@ class SSHHandler(ServerInterface, BaseRequestHandler):
         request = self.dummy_request()
         request._sock = channel
         request.modes = modes
-        request.term = term
+        request.term = term.decode() if isinstance(term, bytes) else term
         request.username = self.username
 
         # This should block until the user quits the pty
