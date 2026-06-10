@@ -180,34 +180,6 @@ If there is no line 2, line 1 will be used for the long description as well.
     Telnet Server>
 
 
-Handling Unknown Commands
-+++++++++++++++++++++++++
-
-If the user enters a command that is not defined, ``command_not_found`` is called.  By default it
-writes a reasonable error message back to the client.  Override this method to provide custom
-handling — for example, to implement a dynamic command dispatcher or to log unrecognised input.
-
-.. code:: python
-
-  def command_not_found(self, command, params):
-      '''
-      Called when no registered command matches the user's input.
-
-      ``command`` is the uppercased command name the user typed.
-      ``params``  is the list of parsed arguments (may be empty).
-      '''
-      self.writeerror(f"Unknown command '{command}'")
-
-A common use is to act as a catch-all that forwards commands to another system:
-
-.. code:: python
-
-  def command_not_found(self, command, params):
-      result = my_backend.run(command, params)
-      if result is None:
-          self.writeerror(f"Unknown command '{command}'")
-      else:
-          self.writeresponse(result)
 
 Command Aliases
 +++++++++++++++
@@ -247,6 +219,36 @@ The command will not show when the user invokes ``help`` by itself, but the deta
 the user invokes ``help echo``.
 
 When stacking decorators, any one of the stack may define the hidden parameter to hide the command.
+
+Handling Unknown Commands
++++++++++++++++++++++++++
+
+If the user enters a command that is not defined, ``command_not_found`` is called.  By default it
+writes a reasonable error message back to the client.  Override this method to provide custom
+handling — for example, to implement a dynamic command dispatcher or to log unrecognised input.
+
+.. code:: python
+
+  def command_not_found(self, command, params):
+      '''
+      Called when no registered command matches the user's input.
+
+      ``command`` is the uppercased command name the user typed.
+      ``params``  is the list of parsed arguments (may be empty).
+      '''
+      self.writeerror(f"Unknown command '{command}'")
+
+A common use is to act as a catch-all that forwards commands to another system:
+
+.. code:: python
+
+  def command_not_found(self, command, params):
+      result = my_backend.run(command, params)
+      if result is None:
+          self.writeerror(f"Unknown command '{command}'")
+      else:
+          self.writeresponse(result)
+
 
 Console Information
 -------------------
