@@ -47,6 +47,8 @@ class TelnetHandler(TelnetHandlerBase):
             if not len(self.cookedq):
                 return ""
         while not len(self.cookedq):
+            if self.eof:
+                raise EOFError
             time.sleep(0.05)
         self.IQUEUELOCK.acquire()
         ret = self.cookedq[0]

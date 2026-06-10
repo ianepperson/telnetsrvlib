@@ -5,6 +5,7 @@ import socketserver
 import threading
 import time
 import pytest
+from unittest import mock
 
 from telnetsrv.threaded import TelnetHandler, command
 
@@ -235,3 +236,43 @@ class TestThreadedIntegration:
         data = c.read_until(b"$ ")
         assert b"EXIT" in data or b"ECHO" in data
         c.close()
+
+
+# ---------------------------------------------------------------------------
+# Issue #16: abrupt disconnect must not leave the handler thread spinning
+# ---------------------------------------------------------------------------
+
+
+class _DisconnectServer(socketserver.ThreadingTCPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
+
+class TestAbruptDisconnect:
+    """When the client closes the TCP connection without sending EXIT, the
+    server-side handler thread must terminate on its own rather than spin
+    forever in getc() waiting for input that will never arrive."""
+
+    def test_abrupt_disconnect_terminates_session(self):
+        handler_finished = threading.Event()
+
+        class TrackingHandler(EchoHandler):
+            def finish(self):
+                super().finish()
+                handler_finished.set()
+
+        srv = _DisconnectServer(("127.0.0.1", 0), TrackingHandler)
+        t = threading.Thread(target=srv.serve_forever)
+        t.daemon = True
+        t.start()
+
+        try:
+            c = _TelnetClient(*srv.server_address)
+            c.read_until(b"$ ")  # wait for the shell prompt so handle() is in getc()
+            c.close()  # abrupt disconnect — no EXIT command
+            assert handler_finished.wait(timeout=3), (
+                "Handler thread did not terminate after abrupt disconnect "
+                "(getc() is probably spinning forever)"
+            )
+        finally:
+            srv.shutdown()
