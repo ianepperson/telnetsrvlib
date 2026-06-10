@@ -29,6 +29,7 @@ import traceback
 import curses.ascii
 import curses
 import logging
+import struct
 from collections.abc import Callable
 from typing import Any
 
@@ -393,7 +394,7 @@ class TelnetHandlerBase(socketserver.BaseRequestHandler):
     WILLACK: dict[str, str] = {
         ECHO: DONT,
         SGA: DO,
-        NAWS: DONT,
+        NAWS: DO,
         TTYPE: DO,
         LINEMODE: DONT,
         NEW_ENVIRON: DO,
@@ -469,6 +470,8 @@ class TelnetHandlerBase(socketserver.BaseRequestHandler):
         self.sb = 0  # Flag for SB and SE sequence.
         self.history: list[str] = []  # Command history
         self.RUNSHELL = True
+        self.WIDTH = 80
+        self.HEIGHT = 24
         # A little magic - Everything called cmdXXX is a command
         # Also, check for decorated functions
         for k in dir(self):
@@ -523,6 +526,15 @@ class TelnetHandlerBase(socketserver.BaseRequestHandler):
         self.CODES["INS"] = (curses.tigetstr("ich1") or b"").decode("latin-1")
         self.CODES["CSRLEFT"] = (curses.tigetstr("cub1") or b"").decode("latin-1")
         self.CODES["CSRRIGHT"] = (curses.tigetstr("cuf1") or b"").decode("latin-1")
+
+    def setnaws(self, data: str) -> None:
+        "Update terminal width and height from a NAWS subnegotiation payload"
+        if len(data) < 4:
+            log.debug("NAWS data too short: %r", data)
+            return
+        raw = data[:4].encode("latin-1")
+        self.WIDTH, self.HEIGHT = struct.unpack(">HH", raw)
+        log.debug("NAWS: width=%s height=%s", self.WIDTH, self.HEIGHT)
 
     def setup(self) -> None:
         "Connect incoming connection to a telnet session"
