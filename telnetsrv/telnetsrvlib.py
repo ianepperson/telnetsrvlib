@@ -22,6 +22,8 @@ Various settings can affect the operation of the server:
                    Function.aliases may be a list of alternative spellings
 """
 
+from __future__ import annotations
+
 import socketserver
 import socket
 import sys
