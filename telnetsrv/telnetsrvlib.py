@@ -1026,6 +1026,13 @@ class TelnetHandlerBase(socketserver.BaseRequestHandler):
 
     # ----------------------- Command Line Processor Engine --------------------
 
+    def command_not_found(self, command: str, params: list[str]):
+        """
+        Called if no command found that matches.
+        params are used for overriding, custom handling and/or custom logging.
+        """
+        self.writeerror(f"Unknown command '{command}'")
+
     def handleException(
         self, exc_type: type, exc_param: BaseException, exc_tb: Any
     ) -> bool:
@@ -1087,7 +1094,7 @@ class TelnetHandlerBase(socketserver.BaseRequestHandler):
                             if self.handleException(t, p, tb):
                                 break
                     else:
-                        self.writeerror("Unknown command '%s'" % cmd)
+                        self.command_not_found(cmd, params)
         except EOFError:
             log.debug("Connection closed by remote host")
         log.debug("Exiting handler")
