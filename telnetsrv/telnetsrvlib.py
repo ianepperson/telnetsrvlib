@@ -1056,23 +1056,26 @@ class TelnetHandlerBase(socketserver.BaseRequestHandler):
             self.writeline(self.WELCOME)
 
         self.session_start()
-        while self.RUNSHELL:
-            raw_input = self.readline(prompt=self.PROMPT).strip()
-            self.input = self.input_reader(self, raw_input)
-            self.raw_input = self.input.raw
-            if self.input.cmd:
-                cmd = self.input.cmd.upper()
-                params = self.input.params
-                if cmd in self.COMMANDS:
-                    try:
-                        self.COMMANDS[cmd](params)
-                    except Exception:
-                        log.exception("Error calling %s." % cmd)
-                        (t, p, tb) = sys.exc_info()
-                        if self.handleException(t, p, tb):
-                            break
-                else:
-                    self.writeerror("Unknown command '%s'" % cmd)
+        try:
+            while self.RUNSHELL:
+                raw_input = self.readline(prompt=self.PROMPT).strip()
+                self.input = self.input_reader(self, raw_input)
+                self.raw_input = self.input.raw
+                if self.input.cmd:
+                    cmd = self.input.cmd.upper()
+                    params = self.input.params
+                    if cmd in self.COMMANDS:
+                        try:
+                            self.COMMANDS[cmd](params)
+                        except Exception:
+                            log.exception("Error calling %s." % cmd)
+                            (t, p, tb) = sys.exc_info()
+                            if self.handleException(t, p, tb):
+                                break
+                    else:
+                        self.writeerror("Unknown command '%s'" % cmd)
+        except EOFError:
+            log.debug("Connection closed by remote host")
         log.debug("Exiting handler")
 
 
