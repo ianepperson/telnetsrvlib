@@ -52,6 +52,7 @@ class SSHHandler(ServerInterface, BaseRequestHandler):
     pty_handler = None
     host_key = None
     username = None
+    warn_of_insecure_auth = True
 
     def __init__(self, request, client_address, server):
         self.request = request
@@ -99,6 +100,12 @@ class SSHHandler(ServerInterface, BaseRequestHandler):
                     "Host key not set!  SSHHandler instance must define host_key."
                     '  Try host_key = paramiko_ssh.getRsaKeyFile("server_rsa.key").'
                 )
+
+        if self.warn_of_insecure_auth and "none" in self.get_allowed_auths("").split(","):
+            log.warning(
+                "SSH server allows 'none' authentication — clients can connect without credentials. "
+                "Set authCallback, authCallbackKey, or authCallbackUsername to require authentication."
+            )
 
         try:
             # Tell transport to use this object as a server
