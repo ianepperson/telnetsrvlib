@@ -515,6 +515,17 @@ can be defined, and if all three are defined, all three will be tried before den
 An SSH client will always provide a username.  If no ``authCallbackXX`` is defined, the SSH authentication will be
 set to "none" and any username will be able to log in.
 
+When "none" authentication is active, a warning is logged each time a connection is established as a reminder
+that the server is unauthenticated.  If this is intentional (e.g. a local development server), suppress the
+warning by setting ``warn_of_insecure_auth = False`` in your ``SSHHandler`` subclass:
+
+.. code:: python
+
+   class MySSHHandler(SSHHandler):
+       host_key = getRsaKeyFile('server_fingerprint.key')
+       telnet_handler = MyTelnetHandler
+       warn_of_insecure_auth = False  # suppress warning: no auth is intentional
+
 ``authCallbackUsername(self, username)``
   Reference to username-only authentication function.  Define this function to permit specific usernames
   to log in without any futher authentication.  Raise any exception to deny this authentication attempt.
