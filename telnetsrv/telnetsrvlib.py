@@ -15,11 +15,6 @@ Various settings can affect the operation of the server:
                    Default: False
     authNeedPass = Should a password be requested?
                    Default: False
-    COMMANDS     = Dictionary of supported commands
-                   Key = command (Must be upper case)
-                   Value = List of (function, help text)
-                   Function.__doc__ should be long help
-                   Function.aliases may be a list of alternative spellings
 """
 
 from __future__ import annotations
@@ -199,30 +194,172 @@ CMDS = {
 }
 
 
-class command:
-    """Function decorator to define a telnet command."""
+def _decorate(fn: Callable, name: str, aliases: list[str], hidden: bool) -> Callable:
+    if hasattr(fn, "aliases"):
+        # More than one decorator: prepend to the existing alias list.
+        fn.aliases.append(fn.command_name)
+        fn.aliases.extend(aliases)
+        fn.command_name = name
+        fn.hidden = hidden or fn.hidden
+    else:
+        fn.aliases = aliases
+        fn.command_name = name
+        fn.hidden = hidden
+    return fn
 
-    def __init__(self, names: str | list[str], hidden: bool = False) -> None:
-        if isinstance(names, str):
-            self.name = names
-            self.alias: list[str] = []
-        else:
-            self.name = names[0]
-            self.alias = list(names[1:])
-        self.hidden = hidden
 
-    def __call__(self, fn: Callable) -> Callable:
-        if hasattr(fn, "aliases"):
-            # More than one decorator: prepend to the existing alias list.
-            fn.aliases.append(fn.command_name)
-            fn.aliases.extend(self.alias)
-            fn.command_name = self.name
-            fn.hidden = self.hidden or fn.hidden
+def cmd(names: str | list[str] | Callable, hidden: bool = False) -> Callable:
+    if isinstance(names, Callable):
+        # bare decorator without any options
+        fn = names
+        return _decorate(fn, fn.__name__, [], hidden)
+    if isinstance(names, str):
+        # decorator with one option - the name, and maybe hidden
+        def _decorate_fn(fn: Callable):
+            return _decorate(fn, names, [], hidden)
+        return _decorate_fn
+
+    # only reaching this point if names is a list of names
+    name = names[0]
+    alias = list(names[1:])
+    def _decorate_fn(fn: Callable):
+        return _decorate(fn, name, alias, hidden)
+
+    return _decorate_fn
+
+
+class Commands:
+    """Base class for a command handler"""
+
+    def __new__(cls, *args, **kwargs):
+        # ensure all commands have been initialized when creating the class
+        cls.__init_all_commands()
+        return super().__new__(cls)
+
+    def __init__(self, handler: "TelnetHandlerBase"):
+        self.handler = handler
+
+    @classmethod
+    def __init_all_commands(cls):
+        # Use cls.__dict__ (not inherited attributes) to check if THIS class has
+        # already been initialized, giving each subclass its own command registry.
+        if "_Commands__all_commands" in cls.__dict__:
+            return
+
+        all_cmds: dict[str, Callable] = {}
+        # A little magic - Everything called cmdXXX is a command
+        # Also, check for decorated functions
+        for k in dir(cls):
+            method = getattr(cls, k)
+            name = getattr(method, "command_name", None)
+            if name is None:
+                if k[:3] == "cmd":
+                    name = k[3:]
+                else:
+                    continue
+
+            name = name.upper()
+            all_cmds[name] = method
+            for alias in getattr(method, "aliases", []):
+                all_cmds[alias.upper()] = all_cmds[name]
+
+        cls.__all_commands = all_cmds
+
+
+    def __call__(self, cmd: str, params: list[str]) -> None:
+        """
+        Called when a new command is received for processing.
+        """
+        cmd = cmd.upper()
+        fn = self.__all_commands.get(cmd)
+        if fn is None:
+            self._command_not_found(cmd, params)
+            return
+        # The all_commands dict contains class methods.
+        # Therefore, must pass in self.
+        fn(self, params)
+
+    def _command_not_found(self, cmd: str, params:list[str]):
+        """
+        Called if no command found that matches.
+        params are used for overriding, custom handling and/or custom logging.
+        """
+        self.handler.writeerror(f"Unknown command '{cmd}'")
+
+
+    # Format of docstrings for command methods:
+    # Line 0:  Command paramater(s) if any. (Can be blank line)
+    # Line 1:  Short descriptive text. (Mandatory)
+    # Line 2+: Long descriptive text. (Can be blank line)
+
+    def _help_single(self, cmd):
+        fn = self.__all_commands.get(cmd)
+        if fn is None:
+            self.handler.writeline(f"Command {cmd} not known")
+            return
+        if not fn.__doc__:
+            self.handler.writeline("no help for command %s" % method)
+            return
+        doc = fn.__doc__.split("\n")
+        docp = doc[0].strip()
+        docl = "\n".join([line_.strip() for line_ in doc[2:]])
+        if not docl.strip():  # If there isn't anything here, use line 1
+            docl = doc[1].strip()
+        self.handler.writeline( f"{cmd} {docp}\n\n{docl}")
+
+    def _help_all(self):
+        """
+        Show help for all visible commands.
+        """
+        self.handler.writeline("Help on built in commands\n")
+        for cmd in sorted(self.__all_commands.keys()):
+            fn = self.__all_commands[cmd]
+            if getattr(fn, "hidden", False):
+                continue
+            if not fn.__doc__:
+                self.handler.writeline(f"{cmd} -")
+                continue
+            doc = fn.__doc__.split("\n")
+            doc_param = doc[0].strip()
+            doc_short = doc[1].strip()
+            if doc_param:
+                self.handler.writeline(f"{cmd} {doc_param} - {doc_short}")
+            else:
+                self.handler.writeline(f"{cmd} - {doc_short}")
+
+    @cmd(["help", "?"])
+    def help(self, params: list[str]) -> None:
+        """[<command>]
+        Display help
+        Display either brief help on all commands, or detailed
+        help on a single command passed as a parameter.
+        """
+        if params:
+            # Help with a specific item
+            cmd = params[0].upper()
+            self._help_single(cmd)
+            return
         else:
-            fn.aliases = self.alias
-            fn.command_name = self.name
-            fn.hidden = self.hidden
-        return fn
+            self._help_all()
+
+    @cmd(["exit", "quit", "bye", "logout"])
+    def exit(self, params: list[str]) -> None:
+        """
+        Exit the command shell
+        """
+        self.handler.RUNSHELL = False
+        self.handler.writeline("Goodbye")
+
+    @cmd
+    def history(self, params: list[str]) -> None:
+        """
+        Display the command history
+        """
+        cnt = 0
+        self.handler.writeline("Command history\n")
+        for line in self.handler.history:
+            cnt = cnt + 1
+            self.handler.writeline("%-5d : %s" % (cnt, "".join(line)))
 
 
 class InputSimple:
@@ -379,6 +516,9 @@ class InputBashLike:
 class TelnetHandlerBase(socketserver.BaseRequestHandler):
     "A telnet server based on the client in telnetlib"
 
+    # This should be overridden with whatever command you want to add
+    commands_class = Commands
+
     # Several methods are not fully defined in this class, and are
     # very specific to either a threaded or green implementation.
     # These methods are noted as #abstracmethods to ensure they are
@@ -471,24 +611,9 @@ class TelnetHandlerBase(socketserver.BaseRequestHandler):
         self.iacseq = ""  # Buffer for IAC sequence.
         self.sb = 0  # Flag for SB and SE sequence.
         self.history: list[str] = []  # Command history
-        self.RUNSHELL = True
+        self.RUNSHELL: bool = True
         self.WIDTH = 80
         self.HEIGHT = 24
-        # A little magic - Everything called cmdXXX is a command
-        # Also, check for decorated functions
-        for k in dir(self):
-            method = getattr(self, k)
-            name = getattr(method, "command_name", None)
-            if name is None:
-                if k[:3] == "cmd":
-                    name = k[3:]
-                else:
-                    continue
-
-            name = name.upper()
-            self.COMMANDS[name] = method
-            for alias in getattr(method, "aliases", []):
-                self.COMMANDS[alias.upper()] = self.COMMANDS[name]
 
         socketserver.BaseRequestHandler.__init__(self, request, client_address, server)
 
@@ -943,87 +1068,6 @@ class TelnetHandlerBase(socketserver.BaseRequestHandler):
         except (EOFError, socket.error):
             pass
 
-    # ------------------------------- Basic Commands ---------------------------
-
-    # Format of docstrings for command methods:
-    # Line 0:  Command paramater(s) if any. (Can be blank line)
-    # Line 1:  Short descriptive text. (Mandatory)
-    # Line 2+: Long descriptive text. (Can be blank line)
-
-    def cmdHELP(self, params: list[str]) -> None:
-        """[<command>]
-        Display help
-        Display either brief help on all commands, or detailed
-        help on a single command passed as a parameter.
-        """
-        if params:
-            cmd = params[0].upper()
-            if cmd in self.COMMANDS:
-                method = self.COMMANDS[cmd]
-                doc = method.__doc__.split("\n")
-                docp = doc[0].strip()
-                docl = "\n".join([line_.strip() for line_ in doc[2:]])
-                if not docl.strip():  # If there isn't anything here, use line 1
-                    docl = doc[1].strip()
-                self.writeline(
-                    "%s %s\n\n%s"
-                    % (
-                        cmd,
-                        docp,
-                        docl,
-                    )
-                )
-                return
-            else:
-                self.writeline("Command '%s' not known" % cmd)
-        else:
-            self.writeline("Help on built in commands\n")
-        for cmd in sorted(self.COMMANDS.keys()):
-            method = self.COMMANDS[cmd]
-            if getattr(method, "hidden", False):
-                continue
-            if method.__doc__ is None:
-                self.writeline("no help for command %s" % method)
-                return
-            doc = method.__doc__.split("\n")
-            docp = doc[0].strip()
-            docs = doc[1].strip()
-            if len(docp) > 0:
-                docps = "%s - %s" % (
-                    docp,
-                    docs,
-                )
-            else:
-                docps = "- %s" % (docs,)
-            self.writeline(
-                "%s %s"
-                % (
-                    cmd,
-                    docps,
-                )
-            )
-
-    cmdHELP.aliases = ["?"]
-
-    def cmdEXIT(self, params: list[str]) -> None:
-        """
-        Exit the command shell
-        """
-        self.RUNSHELL = False
-        self.writeline("Goodbye")
-
-    cmdEXIT.aliases = ["QUIT", "BYE", "LOGOUT"]
-
-    def cmdHISTORY(self, params: list[str]) -> None:
-        """
-        Display the command history
-        """
-        cnt = 0
-        self.writeline("Command history\n")
-        for line in self.history:
-            cnt = cnt + 1
-            self.writeline("%-5d : %s" % (cnt, "".join(line)))
-
     # ----------------------- Command Line Processor Engine --------------------
 
     def command_not_found(self, command: str, params: list[str]):
@@ -1077,6 +1121,8 @@ class TelnetHandlerBase(socketserver.BaseRequestHandler):
             self.writeline(self.WELCOME)
 
         self.session_start()
+        # instantiate a new commands object for this session
+        commands = self.commands_class(self)
         try:
             while self.RUNSHELL:
                 raw_input = self.readline(prompt=self.PROMPT).strip()
@@ -1085,16 +1131,13 @@ class TelnetHandlerBase(socketserver.BaseRequestHandler):
                 if self.input.cmd:
                     cmd = self.input.cmd.upper()
                     params = self.input.params
-                    if cmd in self.COMMANDS:
-                        try:
-                            self.COMMANDS[cmd](params)
-                        except Exception:
-                            log.exception("Error calling %s." % cmd)
-                            (t, p, tb) = sys.exc_info()
-                            if self.handleException(t, p, tb):
-                                break
-                    else:
-                        self.command_not_found(cmd, params)
+                    try:
+                        commands(cmd, params)
+                    except Exception:
+                        log.exception("Error calling %s." % cmd)
+                        (t, p, tb) = sys.exc_info()
+                        if self.handleException(t, p, tb):
+                            break
         except EOFError:
             log.debug("Connection closed by remote host")
         log.debug("Exiting handler")

@@ -1,7 +1,8 @@
-"""Tests for TelnetHandlerBase.command_not_found."""
+"""Tests for command_not_found handling."""
 
 from unittest import mock
 
+from telnetsrv.telnetsrvlib import Commands
 from tests.conftest import ConcreteHandler, make_handler
 
 
@@ -39,12 +40,15 @@ class TestCommandNotFoundDefault:
 
 class TestCommandNotFoundOverride:
     def _handler_with_capture(self):
-        """Return a handler whose command_not_found records its arguments."""
+        """Return a (handler, calls) pair whose Commands records command_not_found args."""
         calls = []
 
-        class MyHandler(ConcreteHandler):
-            def command_not_found(self, command, params):
+        class MyCommands(Commands):
+            def _command_not_found(self, command, params):
                 calls.append((command, params))
+
+        class MyHandler(ConcreteHandler):
+            commands_class = MyCommands
 
         return make_handler(MyHandler), calls
 
@@ -91,9 +95,12 @@ class TestCommandNotFoundOverride:
         assert calls[0][1] == ["hello world"]
 
     def test_override_can_suppress_default_error_output(self):
-        class SilentHandler(ConcreteHandler):
-            def command_not_found(self, command, params):
+        class SilentCommands(Commands):
+            def _command_not_found(self, command, params):
                 pass  # swallow silently
+
+        class SilentHandler(ConcreteHandler):
+            commands_class = SilentCommands
 
         h = make_handler(SilentHandler)
         readline_calls = iter(["NOSUCHCMD", "exit"])

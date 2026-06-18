@@ -3,7 +3,7 @@
 
 import eventlet
 
-from .telnetsrvlib import TelnetHandlerBase, command  # noqa: F401
+from .telnetsrvlib import TelnetHandlerBase, cmd, Commands  # noqa: F401
 
 
 class TelnetHandler(TelnetHandlerBase):

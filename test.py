@@ -27,12 +27,12 @@ if console_args.green:
     SERVERTYPE = 'green'
     # To run a green server, import gevent and the green version of telnetsrv.
     import gevent, gevent.server
-    from telnetsrv.green import TelnetHandler, command
+    from telnetsrv.green import TelnetHandler, cmd, Commands
 elif console_args.eventlet:
     SERVERTYPE = 'eventlet'
     # To run a eventlet server, import eventlet and the eventlet version of telnetsrv.
     import eventlet
-    from telnetsrv.evtlet import TelnetHandler, command
+    from telnetsrv.evtlet import TelnetHandler, cmd, Commands
 else:
     SERVERTYPE = 'threaded'
     # To run a threaded server, import threading and other libraries to help out.
@@ -40,12 +40,149 @@ else:
     import threading
     import time
 
-    from telnetsrv.threaded import TelnetHandler, command
+    from telnetsrv.threaded import TelnetHandler, cmd, Commands
 
     # The SocketServer needs *all IPs* to be 0.0.0.0
     if not TELNET_IP_BINDING:
         TELNET_IP_BINDING = '0.0.0.0'
 
+
+class MyCommands(Commands):
+    """
+    A set of commands to query the connection information stored in MyServer.
+    """
+    @cmd
+    def debug(self, params):
+        """
+        Display some debugging data
+        """
+        for (v,k) in self.handler.ESCSEQ.items():
+            line = '%-10s : ' % (self.handler.KEYS[k], )
+            for c in v:
+                if ord(c)<32 or ord(c)>126:
+                    line = line + curses.ascii.unctrl(c)
+                else:
+                    line = line + c
+            self.handler.writeresponse(line)
+
+    @cmd
+    def params(self, params):
+        '''[<params>]*
+        Echos back the raw received parameters.
+        '''
+        self.writeresponse("params == %r" % params)
+
+    @cmd
+    def info(self, params):
+        '''
+        Provides some information about the current terminal.
+        '''
+        self.writeresponse( "Username: %s, terminal type: %s" % (self.username, self.TERM) )
+        self.writeresponse( "Command history:" )
+        for c in self.history:
+            self.writeresponse("  %r" % c)
+
+    @cmd(['timer', 'timeit'])
+    def timer(self, params):
+        '''<time> <message>
+        In <time> seconds, display <message>.
+        Send a message after a delay.
+        <time> is in seconds.
+        If <message> is more than one word, quotes are required.
+
+        example: TIMER 5 "hello world!"
+        '''
+        try:
+            timestr, message = params[:2]
+            delay = int(timestr)
+        except ValueError:
+            self.handler.writeerror( "Need both a time and a message" )
+            return
+        self.handler.writeresponse("Waiting %d seconds..." % delay)
+
+        if SERVERTYPE == 'green':
+            event = gevent.spawn_later(delay, self.handler.writemessage, message)
+
+        if SERVERTYPE == 'eventlet':
+            event = eventlet.spawn_after(delay, self.handler.writemessage, message)
+
+        if SERVERTYPE == 'threaded':
+            event = threading.Timer(delay, self.handler.writemessage, args=[message])
+            event.start()
+
+        # Used by session_end to stop all timer events when the user logs off.
+        self.handler.timer_events.append(event)
+
+    @cmd('passwd')
+    def set_password(self, params):
+        '''[<password>]
+        Pretends to set a console password.
+        Pretends to set a console password.
+        Demonostrates how sensative information may be handled
+        '''
+        try:
+            password = params[0]
+        except:
+            password = self.handler.readline(prompt="New Password: ", echo=False, use_history=False)
+        else:
+            # If the password was a parameter, it will have been stored in the history.
+            # snip it out to prevent easy snooping
+            self.handler.history[-1] = 'passwd'
+
+        password2 = self.handler.readline(prompt="Retype New Password: ", echo=False, use_history=False)
+        if password == password2:
+            self.handler.writeresponse('Pretending to set new password, but not really.')
+        else:
+            self.handler.writeerror('Passwords don\'t match.')
+
+
+    # Older method of defining a command
+    # must start with "cmd" and end wtih the command name.
+    # Aliases may be attached after the method definitions.
+    def cmdECHO(self, params):
+        '''<text to echo>
+        Echo text back to the console.
+
+        '''
+        self.handler.writeresponse( ' '.join(params) )
+    # Create an alias for this command
+    cmdECHO.aliases = ['REPEAT']
+
+
+    def cmdTERM(self, params):
+        '''
+        Hidden command to print the current TERM
+        '''
+        self.handler.writeresponse( self.handler.TERM )
+    # Hide this command, old-style syntax.  Will not show in the help list.
+    cmdTERM.hidden = True
+
+
+    @cmd('hide-me', hidden=True)
+    @cmd(['hide-me-too', 'also-me'])  # This adds these as aliases
+    def command_do_nothing(self, params):
+        '''
+        Hidden command to perform no action
+        '''
+        self.handler.writeresponse( 'Nope, did nothing.')
+
+
+    @cmd
+    def connections(self, param: list[str]) -> None:
+        """
+        Show how many logins there have been.
+        """
+        self.handler.writeline(
+            f"There have been {self.handler.myserver.connection_count} connections"
+        )
+
+    @cmd(["who", "users"])
+    def users(self, params: list[str]) -> None:
+        """
+        Show who has logged in.
+        """
+        for user, count in self.handler.myserver.user_connect.items():
+            self.handler.writeline(f"{user} : {count}")
 
 
 # The TelnetHandler instance is re-created for each connection.
@@ -55,7 +192,7 @@ else:
 # Here is a simple example that just counts the number of connections
 # as well as the number of times this user has connected.
 
-class MyServer(object):
+class MyServer:
     '''A simple server class that just keeps track of a connection count.'''
     def __init__(self):
         # Var to track the total connections.
@@ -79,6 +216,9 @@ class MyServer(object):
 # to myserver.
 
 class TestTelnetHandler(TelnetHandler):
+    # Instruct the handler to use these defined commands
+    commands_class = MyCommands
+
     # Create the instance of the server within the class for easy use
     myserver = MyServer()
 
@@ -135,123 +275,6 @@ class TestTelnetHandler(TelnetHandler):
 
 
     # -- Custom Commands --
-    @command('debug')
-    def command_debug(self, params):
-        """
-        Display some debugging data
-        """
-        for (v,k) in self.ESCSEQ.items():
-            line = '%-10s : ' % (self.KEYS[k], )
-            for c in v:
-                if ord(c)<32 or ord(c)>126:
-                    line = line + curses.ascii.unctrl(c)
-                else:
-                    line = line + c
-            self.writeresponse(line)
-
-    @command('params')
-    def command_params(self, params):
-        '''[<params>]*
-        Echos back the raw received parameters.
-        '''
-        self.writeresponse("params == %r" % params)
-
-    @command('info')
-    def command_info(self, params):
-        '''
-        Provides some information about the current terminal.
-        '''
-        self.writeresponse( "Username: %s, terminal type: %s" % (self.username, self.TERM) )
-        self.writeresponse( "Command history:" )
-        for c in self.history:
-            self.writeresponse("  %r" % c)
-
-    @command(['timer', 'timeit'])
-    def command_timer(self, params):
-        '''<time> <message>
-        In <time> seconds, display <message>.
-        Send a message after a delay.
-        <time> is in seconds.
-        If <message> is more than one word, quotes are required.
-        
-        example: TIMER 5 "hello world!"
-        '''
-        try:
-            timestr, message = params[:2]
-            delay = int(timestr)
-        except ValueError:
-            self.writeerror( "Need both a time and a message" )
-            return
-        self.writeresponse("Waiting %d seconds..." % delay)
-
-        if SERVERTYPE == 'green':
-            event = gevent.spawn_later(delay, self.writemessage, message)
-
-        if SERVERTYPE == 'eventlet':
-            event = eventlet.spawn_after(delay, self.writemessage, message)
-
-        if SERVERTYPE == 'threaded':
-            event = threading.Timer(delay, self.writemessage, args=[message])
-            event.start()
-
-        # Used by session_end to stop all timer events when the user logs off.
-        self.timer_events.append(event)
-
-    @command('passwd')
-    def command_set_password(self, params):
-        '''[<password>]
-        Pretends to set a console password.
-        Pretends to set a console password.
-        Demonostrates how sensative information may be handled
-        '''
-        try:
-            password = params[0]
-        except:
-            password = self.readline(prompt="New Password: ", echo=False, use_history=False)
-        else:
-            # If the password was a parameter, it will have been stored in the history.
-            # snip it out to prevent easy snooping
-            self.history[-1] = 'passwd'
-
-        password2 = self.readline(prompt="Retype New Password: ", echo=False, use_history=False)
-        if password == password2:
-            self.writeresponse('Pretending to set new password, but not really.')
-        else:
-            self.writeerror('Passwords don\'t match.')
-
-
-    # Older method of defining a command
-    # must start with "cmd" and end wtih the command name.
-    # Aliases may be attached after the method definitions.
-    def cmdECHO(self, params):
-        '''<text to echo>
-        Echo text back to the console.
-        
-        '''
-        self.writeresponse( ' '.join(params) )
-    # Create an alias for this command
-    cmdECHO.aliases = ['REPEAT']
-
-
-    def cmdTERM(self, params):
-        '''
-        Hidden command to print the current TERM
-        
-        '''
-        self.writeresponse( self.TERM )
-    # Hide this command, old-style syntax.  Will not show in the help list.
-    cmdTERM.hidden = True
-
-
-    @command('hide-me', hidden=True)
-    @command(['hide-me-too', 'also-me'])
-    def command_do_nothing(self, params):
-        '''
-        Hidden command to perform no action
-        
-        '''
-        self.writeresponse( 'Nope, did nothing.')
-
 
 
 if __name__ == '__main__':
