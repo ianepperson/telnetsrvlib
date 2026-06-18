@@ -49,57 +49,78 @@ Note that there are no required dependencies beyond the Python standard library,
 To Use
 ------
 
-Import the ``TelnetHandler`` base class and ``command`` function decorator from either the green class, evtlet class or threaded class,
-then subclass ``TelnetHandler`` to add your own commands which are methods decorated with ``@command``.  
+Import ``TelnetHandler``, the ``cmd`` decorator, and the ``Commands`` base class from either
+the threaded, green, or evtlet module.  Define your commands by subclassing ``Commands``,
+then point your ``TelnetHandler`` subclass at that commands class.
 
 Threaded
 ++++++++
 
 .. code:: python
 
- from telnetsrv.threaded import TelnetHandler, command
- class MyHandler(TelnetHandler):
+ from telnetsrv.threaded import TelnetHandler, cmd, Commands
+
+ class MyCommands(Commands):
     ...
+
+ class MyHandler(TelnetHandler):
+    commands_class = MyCommands
 
 Green
 +++++
 
 .. code:: python
 
- from telnetsrv.green import TelnetHandler, command
- class MyHandler(TelnetHandler):
+ from telnetsrv.green import TelnetHandler, cmd, Commands
+
+ class MyCommands(Commands):
     ...
+
+ class MyHandler(TelnetHandler):
+    commands_class = MyCommands
 
 Eventlet
 ++++++++
 
 .. code:: python
 
- from telnetsrv.evtlet import TelnetHandler, command
- class MyHandler(TelnetHandler):
+ from telnetsrv.evtlet import TelnetHandler, cmd, Commands
+
+ class MyCommands(Commands):
     ...
+
+ class MyHandler(TelnetHandler):
+    commands_class = MyCommands
 
 Adding Commands
 ---------------
 
-Commands can be defined by using the ``command`` function decorator.
+Commands are defined as methods of a ``Commands`` subclass, decorated with ``@cmd``.
 
 .. code:: python
 
-  @command('echo')
-  def command_echo(self, params):
-     ...
+  class MyCommands(Commands):
+      @cmd('echo')
+      def echo(self, params):
+          self.handler.writeresponse(' '.join(params))
+
+  class MyHandler(TelnetHandler):
+      commands_class = MyCommands
+
+Within a command method, ``self`` is the ``Commands`` instance.  Use ``self.handler``
+to reach the telnet handler and all of its I/O methods and session attributes.
 
 Old Style
 +++++++++
 
-Commands can also be defined by prefixing any method with "cmd".  For example, 
+Commands can also be defined by prefixing any method name with ``cmd``.  For example,
 this also creates an ``echo`` command:
 
 .. code:: python
 
-  def cmdECHO(self, params):
-     ...
+  class MyCommands(Commands):
+      def cmdECHO(self, params):
+          self.handler.writeresponse(' '.join(params))
 
 *This method is less flexible and may not be supported in future versions.*
 
@@ -108,8 +129,8 @@ Command Parameters
 
 Any command parameters will be passed to this function automatically.  The parameters are
 contained in a list.  The user input is parsed similar to the way Bash parses text: space delimited,
-quoted parameters are kept together and default behavior can be modified with the ``\`` character.  
-If you need to access the raw text input, inspect the self.input.raw variable.
+quoted parameters are kept together and default behavior can be modified with the ``\`` character.
+If you need to access the raw text input, inspect ``self.handler.input.raw``.
 
 ::
 
@@ -118,7 +139,7 @@ If you need to access the raw text input, inspect the self.input.raw variable.
 .. code:: python
 
   params == ['1', '2    3']
-  self.input.raw == 'echo 1 "2    3"\n'
+  self.handler.input.raw == 'echo 1 "2    3"\n'
 
 ::
 
@@ -126,7 +147,7 @@ If you need to access the raw text input, inspect the self.input.raw variable.
     ... 2 "3
     ... 4"  "5\
     ... 6"
-    
+
 .. code:: python
 
   params == ['1', '2', '3\n4', '56']
@@ -134,7 +155,7 @@ If you need to access the raw text input, inspect the self.input.raw variable.
 ::
 
     Telnet Server> echo 1\ 2
-    
+
 .. code:: python
 
   params == ['1 2']
@@ -153,14 +174,15 @@ If there is no line 2, line 1 will be used for the long description as well.
 
 .. code:: python
 
-   @command('echo')
-   def command_echo(self, params):
-       '''<text to echo>
-       Echo text back to the console.
-       This command simply echos the provided text
-       back to the console.
-       '''
-       pass
+   class MyCommands(Commands):
+       @cmd('echo')
+       def echo(self, params):
+           '''<text to echo>
+           Echo text back to the console.
+           This command simply echos the provided text
+           back to the console.
+           '''
+           self.handler.writeresponse(' '.join(params))
 
 
 ::
@@ -184,22 +206,22 @@ If there is no line 2, line 1 will be used for the long description as well.
 Command Aliases
 +++++++++++++++
 
-To create an alias for the new command, set the method's name to a list:
+To create aliases for a command, pass a list of names to the decorator:
 
 .. code:: python
 
-  @command(['echo', 'copy'])
-  def command_echo(self, params):
+  @cmd(['echo', 'copy'])
+  def echo(self, params):
      ...
 
 The decorator may be stacked, which adds each list to the aliases:
 
 .. code:: python
 
-  @command('echo')
-  @command(['copy', 'repeat'])
-  @command('ditto')
-  def command_echo(self, params):
+  @cmd('echo')
+  @cmd(['copy', 'repeat'])
+  @cmd('ditto')
+  def echo(self, params):
      ...
 
 
@@ -211,8 +233,8 @@ To hide the command (and any alias for that command) from the help text output, 
 
 .. code:: python
 
-  @command('echo', hidden=True)
-  def command_echo(self, params):
+  @cmd('echo', hidden=True)
+  def echo(self, params):
      ...
 
 The command will not show when the user invokes ``help`` by itself, but the detailed help text will show if
@@ -223,37 +245,42 @@ When stacking decorators, any one of the stack may define the hidden parameter t
 Handling Unknown Commands
 +++++++++++++++++++++++++
 
-If the user enters a command that is not defined, ``command_not_found`` is called.  By default it
-writes a reasonable error message back to the client.  Override this method to provide custom
-handling — for example, to implement a dynamic command dispatcher or to log unrecognised input.
+If the user enters a command that is not defined, ``_command_not_found`` is called on the ``Commands``
+instance.  By default it writes a reasonable error message back to the client.  Override this method
+in your ``Commands`` subclass to provide custom handling — for example, to implement a dynamic command
+dispatcher or to log unrecognised input.
 
 .. code:: python
 
-  def command_not_found(self, command, params):
-      '''
-      Called when no registered command matches the user's input.
+  class MyCommands(Commands):
+      def _command_not_found(self, command, params):
+          '''
+          Called when no registered command matches the user's input.
 
-      ``command`` is the uppercased command name the user typed.
-      ``params``  is the list of parsed arguments (may be empty).
-      '''
-      self.writeerror(f"Unknown command '{command}'")
+          ``command`` is the uppercased command name the user typed.
+          ``params``  is the list of parsed arguments (may be empty).
+          '''
+          self.handler.writeerror(f"Unknown command '{command}'")
 
 A common use is to act as a catch-all that forwards commands to another system:
 
 .. code:: python
 
-  def command_not_found(self, command, params):
-      result = my_backend.run(command, params)
-      if result is None:
-          self.writeerror(f"Unknown command '{command}'")
-      else:
-          self.writeresponse(result)
+  class MyCommands(Commands):
+      def _command_not_found(self, command, params):
+          result = my_backend.run(command, params)
+          if result is None:
+              self.handler.writeerror(f"Unknown command '{command}'")
+          else:
+              self.handler.writeresponse(result)
 
 
 Console Information
 -------------------
 
-These will be provided for inspection.
+These handler attributes are available for inspection.  Within a command method, access them
+via ``self.handler``; within handler lifecycle methods (``session_start``, ``session_end``, etc.),
+access them directly as ``self``.
 
 ``TERM``
   String ID describing the currently connected terminal
@@ -263,27 +290,32 @@ These will be provided for inspection.
 
 ``HEIGHT``
   Integer describing the height of the terminal at connection time.
-  
+
 ``username``
   Set after authentication succeeds, name of the logged in user.
   If no authentication was requested, will be ``None``.
-  
+
 ``history``
   List containing the command history.  This can be manipulated directly.
-  
+
 
 .. code:: python
 
-    @command('info')
-    def command_info(self, params):
-        '''
-        Provides some information about the current terminal.
-        '''
-        self.writeresponse( "Username: %s, terminal type: %s" % (self.username, self.TERM) )
-        self.writeresponse( "Width: %s, height: %s" % (self.WIDTH, self.HEIGHT) )
-        self.writeresponse( "Command history:" )
-        for c in self.history:
-            self.writeresponse("  %r" % c)
+    class MyCommands(Commands):
+        @cmd('info')
+        def info(self, params):
+            '''
+            Provides some information about the current terminal.
+            '''
+            self.handler.writeresponse(
+                "Username: %s, terminal type: %s" % (self.handler.username, self.handler.TERM)
+            )
+            self.handler.writeresponse(
+                "Width: %s, height: %s" % (self.handler.WIDTH, self.handler.HEIGHT)
+            )
+            self.handler.writeresponse("Command history:")
+            for c in self.handler.history:
+                self.handler.writeresponse("  %r" % c)
 
 
 Console Communication
@@ -291,30 +323,32 @@ Console Communication
 
 Send Text to the Client
 +++++++++++++++++++++++
- 
+
+Within a command method, reach the handler via ``self.handler``:
+
 Lower level functions:
 
-``self.writeline( TEXT )``
+``self.handler.writeline( TEXT )``
 
-``self.write( TEXT )``
+``self.handler.write( TEXT )``
 
 Higher level functions:
 
-``self.writemessage( TEXT )`` - for clean, asynchronous writing.  Any interrupted input is rebuilt.
+``self.handler.writemessage( TEXT )`` - for clean, asynchronous writing.  Any interrupted input is rebuilt.
 
-``self.writeresponse( TEXT )`` - to emit a line of expected output
+``self.handler.writeresponse( TEXT )`` - to emit a line of expected output
 
-``self.writeerror( TEXT )`` - to emit error messages
+``self.handler.writeerror( TEXT )`` - to emit error messages
 
 The ``writemessage`` method is intended to send messages to the console without
-interrupting any current input.  If the user has entered text at the prompt, 
-the prompt and text will be seamlessly regenerated following the message.  
+interrupting any current input.  If the user has entered text at the prompt,
+the prompt and text will be seamlessly regenerated following the message.
 It is ideal for asynchronous messages that aren't generated from the direct user input.
 
 Receive Text from the Client
 ++++++++++++++++++++++++++++
 
-``self.readline( prompt=TEXT )``
+``self.handler.readline( prompt=TEXT )``
 
 Setting the prompt is important to recreate the user input following a ``writemessage``
 interruption.
@@ -323,53 +357,54 @@ When requesting sensitive information from the user (such as requesting a new pa
 not be shown nor should the input line be written to the command history.  ``readline`` accepts
 two optional parameters to control this, ``echo`` and ``use_history``.
 
-``self.readline( prompt=TEXT, echo=False, use_history=False )``
+``self.handler.readline( prompt=TEXT, echo=False, use_history=False )``
 
-When ``echo`` is set to False, the input will not echo back to the user.  When ``use_history`` is set 
+When ``echo`` is set to False, the input will not echo back to the user.  When ``use_history`` is set
 to False, the user will not have access to the command history (up arrow) nor will the entered data
 be stored in the command history.
 
 Handler Options
 ---------------
 
-Override these class members to change the handler's behavior.
+Override these class members on ``TelnetHandler`` to change the handler's behavior.
+Within these methods, ``self`` is the handler, so I/O methods are called directly (``self.writeline``, etc.).
 
 ``PROMPT``
   Default: ``"Telnet Server> "``
-    
+
 ``CONTINUE_PROMPT``
   Default: ``"... "``
-     
+
 ``WELCOME``
   Displayed after a successful connection, after the username/password is accepted, if configured.
-  
+
   Default: ``"You have connected to the telnet server."``
 
 ``session_start(self)``
   Called after the ``WELCOME`` text is displayed.
-  
+
   Default:  pass
-    
+
 ``session_end(self)``
   Called after the console is disconnected.
-  
+
   Default:  pass
-  
-``authCallback(self, username, password)`` 
+
+``authCallback(self, username, password)``
   Reference to authentication function. If
   this is not defined, no username or password is requested. Should
   raise an exception if authentication fails
-  
+
   Default: None
 
-``authNeedUser`` 
+``authNeedUser``
   Should a username be requested?
-  
+
   Default: ``False``
 
 ``authNeedPass``
   Should a password be requested?
-  
+
   Default: ``False``
 
 
@@ -377,19 +412,20 @@ Handler Display Modification
 ----------------------------
 
 If you want to change how the output is displayed, override one or all of the
-write classes.  Make sure you call back to the base class when doing so.
+write methods on ``TelnetHandler``.  Make sure you call back to the base class when doing so.
 This is a good way to provide color to your console by using ANSI color commands.
 See http://en.wikipedia.org/wiki/ANSI_escape_code
 
-- writemessage( TEXT ) 
-- writeresponse( TEXT ) 
-- writeerror( TEXT ) 
+- writemessage( TEXT )
+- writeresponse( TEXT )
+- writeerror( TEXT )
 
 .. code:: python
 
-    def writeerror(self, text):
-        '''Write errors in red'''
-        TelnetHandler.writeerror(self, "\x1b[91m%s\x1b[0m" % text )
+    class MyHandler(TelnetHandler):
+        def writeerror(self, text):
+            '''Write errors in red'''
+            TelnetHandler.writeerror(self, "\x1b[91m%s\x1b[0m" % text )
 
 Serving the Handler
 -------------------
@@ -414,7 +450,7 @@ Threaded
 Green
 +++++
 
-The TelnetHandler class includes a streamserver_handle class method to translate the 
+The TelnetHandler class includes a streamserver_handle class method to translate the
 required fields from a StreamServer, allowing use with the gevent StreamServer (and possibly
 others).
 
@@ -431,39 +467,42 @@ Short Example
 .. code:: python
 
  import gevent, gevent.server
- from telnetsrv.green import TelnetHandler, command
- 
- class MyTelnetHandler(TelnetHandler):
-     WELCOME = "Welcome to my server."
-     
-     @command(['echo', 'copy', 'repeat'])
-     def command_echo(self, params):
+ from telnetsrv.green import TelnetHandler, cmd, Commands
+
+ class MyCommands(Commands):
+     @cmd(['echo', 'copy', 'repeat'])
+     def echo(self, params):
          '''<text to echo>
          Echo text back to the console.
-         
+
          '''
-         self.writeresponse( ' '.join(params) )
- 
-     @command('timer')
-     def command_timer(self, params):
+         self.handler.writeresponse(' '.join(params))
+
+     @cmd('timer')
+     def timer(self, params):
          '''<time> <message>
          In <time> seconds, display <message>.
          Send a message after a delay.
          <time> is in seconds.
          If <message> is more than one word, quotes are required.
-         example: 
+         example:
          > TIMER 5 "hello world!"
          '''
          try:
              timestr, message = params[:2]
              delay = int(timestr)
          except ValueError:
-             self.writeerror( "Need both a time and a message" )
+             self.handler.writeerror("Need both a time and a message")
              return
-         self.writeresponse("Waiting %d seconds..." % delay)
-         gevent.spawn_later(delay, self.writemessage, message)
- 
- 
+         self.handler.writeresponse("Waiting %d seconds..." % delay)
+         gevent.spawn_later(delay, self.handler.writemessage, message)
+
+
+ class MyTelnetHandler(TelnetHandler):
+     WELCOME = "Welcome to my server."
+     commands_class = MyCommands
+
+
  server = gevent.server.StreamServer(("", 8023), MyTelnetHandler.streamserver_handle)
  server.serve_forever()
 
@@ -520,7 +559,7 @@ read once and set in the class definition.
 Easy way:
 
 ``host_key = getRsaKeyFile( FILENAME )``
-  If the FILENAME can be read, the RSA key is read in and returned as an RSAKey object.  
+  If the FILENAME can be read, the RSA key is read in and returned as an RSAKey object.
   If the file can't be read, it generates a new RSA key and stores it in that file.
 
 Long way:
@@ -528,15 +567,15 @@ Long way:
 .. code:: python
 
    from paramiko import RSAKey
-   
+
    # Make a new key - should only be done once per server during setup
    new_key = RSAKey.generate(1024)
    save_to_my_database( 'server_fingerprint',  str(new_key) )
-   
+
    ...
-   
+
    host_key = RSAKey( data=get_from_my_database('server_fingerprint') )
-   
+
 
 SSH Authentication
 ++++++++++++++++++
@@ -560,26 +599,26 @@ warning by setting ``warn_of_insecure_auth = False`` in your ``SSHHandler`` subc
 ``authCallbackUsername(self, username)``
   Reference to username-only authentication function.  Define this function to permit specific usernames
   to log in without any futher authentication.  Raise any exception to deny this authentication attempt.
-  
+
   If defined, this is always tried first.
-  
+
   Default: None
 
 ``authCallbackKey(self, username, key)``
   Reference to username/key authentication function.  If this is defined,
   users can log in the SSH client automatically with a key.  Raise any exception to deny this authentication attempt.
-  
-  Default: None
-  
-``authCallback(self, username, password)`` 
-  Reference to username/password authentication function. If
-  this is defined, a password is requested. Raise any exception to deny this authentication attempt.
-  
-  If defined, this is always tried last.
-  
+
   Default: None
 
-  
+``authCallback(self, username, password)``
+  Reference to username/password authentication function. If
+  this is defined, a password is requested. Raise any exception to deny this authentication attempt.
+
+  If defined, this is always tried last.
+
+  Default: None
+
+
 SSHHandler uses Paramiko's ServerInterface as one of its base classes.  If you are familiar with Paramiko, feel free
 to instead override the authentication callbacks as needed.
 
@@ -592,40 +631,42 @@ Short SSH Example
  from gevent import monkey; monkey.patch_all()
  import gevent.server
  from telnetsrv.paramiko_ssh import SSHHandler, getRsaKeyFile
- from telnetsrv.green import TelnetHandler, command
- 
- class MyTelnetHandler(TelnetHandler):
-     WELCOME = "Welcome to my server."
-     
-     @command(['echo', 'copy', 'repeat'])
-     def command_echo(self, params):
+ from telnetsrv.green import TelnetHandler, cmd, Commands
+
+ class MyCommands(Commands):
+     @cmd(['echo', 'copy', 'repeat'])
+     def echo(self, params):
          '''<text to echo>
          Echo text back to the console.
-         
+
          '''
-         self.writeresponse( ' '.join(params) ) 
- 
+         self.handler.writeresponse(' '.join(params))
+
+ class MyTelnetHandler(TelnetHandler):
+     WELCOME = "Welcome to my server."
+     commands_class = MyCommands
+
  class MySSHHandler(SSHHandler):
      # Set the unique host key
-     host_key = getRsaKeyFile('server_fingerprint.key') 
-     
+     host_key = getRsaKeyFile('server_fingerprint.key')
+
      # Instruct this SSH handler to use MyTelnetHandler for any PTY connections
      telnet_handler = MyTelnetHandler
-     
+
      def authCallbackUsername(self, username):
          # These users do not require a password
          if username not in ['john', 'eric', 'terry', 'graham']:
             raise RuntimeError('Not a Python!')
- 
+
      def authCallback(self, username, password):
          # Super secret password:
          if password != 'concord':
             raise RuntimeError('Wrong password!')
- 
+
  # Start a telnet server for just the localhost on port 8023.  (Will not request any authentication.)
  telnetserver = gevent.server.StreamServer(('127.0.0.1', 8023), MyTelnetHandler.streamserver_handle)
  telnetserver.start()
- 
+
  # Start an SSH server for any local or remote host on port 8022
  sshserver = gevent.server.StreamServer(("", 8022), MySSHHandler.streamserver_handle)
  sshserver.serve_forever()
