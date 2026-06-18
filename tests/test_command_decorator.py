@@ -1,9 +1,9 @@
-from telnetsrv.telnetsrvlib import command
+from telnetsrv.telnetsrvlib import cmd
 
 
 class TestCommandDecorator:
     def test_single_string_name(self):
-        @command("myname")
+        @cmd("myname")
         def fn(params):
             pass
 
@@ -12,7 +12,7 @@ class TestCommandDecorator:
         assert fn.hidden is False
 
     def test_list_of_names_first_is_primary(self):
-        @command(["primary", "alias1", "alias2"])
+        @cmd(["primary", "alias1", "alias2"])
         def fn(params):
             pass
 
@@ -20,7 +20,7 @@ class TestCommandDecorator:
         assert fn.aliases == ["alias1", "alias2"]
 
     def test_single_item_list(self):
-        @command(["only"])
+        @cmd(["only"])
         def fn(params):
             pass
 
@@ -28,14 +28,14 @@ class TestCommandDecorator:
         assert fn.aliases == []
 
     def test_hidden_false_is_default(self):
-        @command("x")
+        @cmd("x")
         def fn(params):
             pass
 
         assert fn.hidden is False
 
     def test_hidden_true(self):
-        @command("x", hidden=True)
+        @cmd("x", hidden=True)
         def fn(params):
             pass
 
@@ -45,12 +45,12 @@ class TestCommandDecorator:
         def fn(params):
             pass
 
-        result = command("x")(fn)
+        result = cmd("x")(fn)
         assert result is fn
 
     def test_stacked_outermost_is_primary(self):
-        @command("outer")
-        @command(["inner", "inneralias"])
+        @cmd("outer")
+        @cmd(["inner", "inneralias"])
         def fn(params):
             pass
 
@@ -59,9 +59,9 @@ class TestCommandDecorator:
         assert "inneralias" in fn.aliases
 
     def test_stacked_three_deep(self):
-        @command("top")
-        @command("middle")
-        @command("bottom")
+        @cmd("top")
+        @cmd("middle")
+        @cmd("bottom")
         def fn(params):
             pass
 
@@ -70,8 +70,8 @@ class TestCommandDecorator:
         assert "bottom" in fn.aliases
 
     def test_stacked_all_aliases_collected(self):
-        @command(["a", "b"])
-        @command(["c", "d"])
+        @cmd(["a", "b"])
+        @cmd(["c", "d"])
         def fn(params):
             pass
 
@@ -80,16 +80,16 @@ class TestCommandDecorator:
         assert set(fn.aliases) == {"b", "c", "d"}
 
     def test_hidden_on_outer_propagates(self):
-        @command("top", hidden=True)
-        @command("bottom")
+        @cmd("top", hidden=True)
+        @cmd("bottom")
         def fn(params):
             pass
 
         assert fn.hidden is True
 
     def test_hidden_on_inner_propagates(self):
-        @command("top")
-        @command("bottom", hidden=True)
+        @cmd("top")
+        @cmd("bottom", hidden=True)
         def fn(params):
             pass
 
@@ -98,7 +98,7 @@ class TestCommandDecorator:
     def test_function_still_callable(self):
         results = []
 
-        @command("test")
+        @cmd("test")
         def fn(params):
             results.append(params)
 

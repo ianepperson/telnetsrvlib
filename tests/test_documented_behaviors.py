@@ -5,7 +5,7 @@ Each section references the README section it validates.
 
 from unittest import mock
 
-from telnetsrv.telnetsrvlib import command
+from telnetsrv.telnetsrvlib import cmd, Commands
 from tests.conftest import ConcreteHandler, make_handler
 
 
@@ -20,51 +20,57 @@ def recv(handler) -> str:
 
 class TestOldStyleCmdPrefix:
     def test_cmdXxx_method_registered_as_command(self):
-        class MyHandler(ConcreteHandler):
+        class MyCommands(Commands):
             def cmdECHO(self, params):
                 """
                 Echo params.
                 """
-                self.writeresponse(" ".join(params))
+                self.handler.writeresponse(" ".join(params))
 
-        h = make_handler(MyHandler)
-        assert "ECHO" in h.COMMANDS
+        h = make_handler()
+        commands = MyCommands(h)
+        assert "ECHO" in commands._Commands__all_commands
 
     def test_cmdXxx_is_callable_via_commands_dict(self):
         results = []
 
-        class MyHandler(ConcreteHandler):
+        class MyCommands(Commands):
             def cmdGREET(self, params):
                 """
                 Greet.
                 """
                 results.append(params)
 
-        h = make_handler(MyHandler)
-        h.COMMANDS["GREET"](["hello"])
+        h = make_handler()
+        commands = MyCommands(h)
+        commands("GREET", ["hello"])
         assert results == [["hello"]]
 
     def test_cmdXxx_prefix_stripped_from_name(self):
-        class MyHandler(ConcreteHandler):
+        class MyCommands(Commands):
             def cmdFOO(self, params):
                 """
                 Foo.
                 """
                 pass
 
-        h = make_handler(MyHandler)
-        assert "FOO" in h.COMMANDS
-        assert "CMDFOO" not in h.COMMANDS
+        h = make_handler()
+        commands = MyCommands(h)
+        assert "FOO" in commands._Commands__all_commands
+        assert "CMDFOO" not in commands._Commands__all_commands
 
     def test_cmdXxx_case_insensitive_lookup_via_dispatch(self):
         seen = []
 
-        class MyHandler(ConcreteHandler):
+        class MyCommands(Commands):
             def cmdPING(self, params):
                 """
                 Ping.
                 """
                 seen.append(True)
+
+        class MyHandler(ConcreteHandler):
+            commands_class = MyCommands
 
         h = make_handler(MyHandler)
         readline_calls = iter(["ping", "exit"])
@@ -80,46 +86,47 @@ class TestOldStyleCmdPrefix:
 
 class TestHiddenCommandDetailedHelp:
     def test_hidden_command_absent_from_listing(self):
-        @command("secret", hidden=True)
-        def cmd(params):
-            """
-            Secret details.
-            """
+        class MyCommands(Commands):
+            @cmd("secret", hidden=True)
+            def secret(self, params):
+                """
+                Secret details.
+                """
 
         h = make_handler()
-        h.COMMANDS["SECRET"] = cmd
-        h.cmdHELP([])
+        commands = MyCommands(h)
+        commands.help([])
         assert "SECRET" not in recv(h)
 
     def test_hidden_command_shows_detail_when_named(self):
-        @command("secret", hidden=True)
-        def cmd(params):
-            """
-            Secret details.
-            Long explanation of the secret command.
-            """
+        class MyCommands(Commands):
+            @cmd("secret", hidden=True)
+            def secret(self, params):
+                """
+                Secret details.
+                Long explanation of the secret command.
+                """
 
         h = make_handler()
-        h.COMMANDS["SECRET"] = cmd
-        h.cmdHELP(["SECRET"])
+        commands = MyCommands(h)
+        commands.help(["SECRET"])
         output = recv(h)
         assert "SECRET" in output
         assert "Long explanation" in output
 
     def test_hidden_stacked_decorator_still_shows_detail(self):
-        @command("pub")
-        @command("priv", hidden=True)
-        def cmd(params):
-            """
-            Details.
-            Extended details here.
-            """
+        class MyCommands(Commands):
+            @cmd("pub")
+            @cmd("priv", hidden=True)
+            def pub_or_priv(self, params):
+                """
+                Details.
+                Extended details here.
+                """
 
         h = make_handler()
-        h.COMMANDS["PUB"] = cmd
-        h.COMMANDS["PRIV"] = cmd
-        # Both aliases hidden (hidden propagates), both show detail
-        h.cmdHELP(["PRIV"])
+        commands = MyCommands(h)
+        commands.help(["PRIV"])
         assert "Extended details here." in recv(h)
 
 

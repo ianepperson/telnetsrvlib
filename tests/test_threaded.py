@@ -7,7 +7,7 @@ import time
 import pytest
 from unittest import mock
 
-from telnetsrv.threaded import TelnetHandler, command
+from telnetsrv.threaded import TelnetHandler, cmd, Commands
 
 
 # ---------------------------------------------------------------------------
@@ -15,25 +15,28 @@ from telnetsrv.threaded import TelnetHandler, command
 # ---------------------------------------------------------------------------
 
 
+class EchoCommands(Commands):
+    @cmd("echo")
+    def cmd_echo(self, params):
+        """<text>
+        Echo parameters back.
+        """
+        self.handler.writeresponse(" ".join(params))
+
+    @cmd("secret", hidden=True)
+    def cmd_secret(self, params):
+        """
+        Hidden command.
+        """
+        self.handler.writeresponse("shh")
+
+
 class EchoHandler(TelnetHandler):
     WELCOME = "READY"
     PROMPT = "$ "
     authNeedUser = False
     authNeedPass = False
-
-    @command("echo")
-    def cmd_echo(self, params):
-        """<text>
-        Echo parameters back.
-        """
-        self.writeresponse(" ".join(params))
-
-    @command("secret", hidden=True)
-    def cmd_secret(self, params):
-        """
-        Hidden command.
-        """
-        self.writeresponse("shh")
+    commands_class = EchoCommands
 
 
 class _Server(socketserver.ThreadingTCPServer):

@@ -2,7 +2,7 @@
 
 from unittest import mock
 
-from telnetsrv.telnetsrvlib import command
+from telnetsrv.telnetsrvlib import cmd, Commands
 from tests.conftest import ConcreteHandler, make_handler
 
 
@@ -17,78 +17,96 @@ def recv(handler) -> str:
 
 class TestCommandRegistration:
     def test_builtin_commands_present(self, handler):
-        for cmd in ("HELP", "EXIT", "HISTORY"):
-            assert cmd in handler.COMMANDS, f"{cmd} missing from COMMANDS"
+        commands = Commands(handler)
+        for name in ("HELP", "EXIT", "HISTORY"):
+            assert name in commands._Commands__all_commands, f"{name} missing"
 
     def test_exit_aliases_registered(self, handler):
+        commands = Commands(handler)
         for alias in ("QUIT", "BYE", "LOGOUT"):
-            assert alias in handler.COMMANDS
+            assert alias in commands._Commands__all_commands
 
     def test_help_alias_registered(self, handler):
-        assert "?" in handler.COMMANDS
+        commands = Commands(handler)
+        assert "?" in commands._Commands__all_commands
 
     def test_decorated_command_in_subclass(self):
-        class MyHandler(ConcreteHandler):
-            @command("greet")
+        class MyCommands(Commands):
+            @cmd("greet")
             def command_greet(self, params):
                 """
                 Say hello.
                 """
-                self.writeresponse("hi")
+                self.handler.writeresponse("hi")
+
+        class MyHandler(ConcreteHandler):
+            commands_class = MyCommands
 
         h = make_handler(MyHandler)
-        assert "GREET" in h.COMMANDS
+        commands = MyCommands(h)
+        assert "GREET" in commands._Commands__all_commands
 
     def test_decorated_aliases_in_subclass(self):
-        class MyHandler(ConcreteHandler):
-            @command(["primary", "alt"])
+        class MyCommands(Commands):
+            @cmd(["primary", "alt"])
             def command_primary(self, params):
                 """
                 Primary command.
                 """
                 pass
 
+        class MyHandler(ConcreteHandler):
+            commands_class = MyCommands
+
         h = make_handler(MyHandler)
-        assert "PRIMARY" in h.COMMANDS
-        assert "ALT" in h.COMMANDS
-        assert h.COMMANDS["ALT"] is h.COMMANDS["PRIMARY"]
+        commands = MyCommands(h)
+        assert "PRIMARY" in commands._Commands__all_commands
+        assert "ALT" in commands._Commands__all_commands
+        assert commands._Commands__all_commands["ALT"] is commands._Commands__all_commands["PRIMARY"]
 
 
 # ---------------------------------------------------------------------------
-# cmdHELP
+# help command
 # ---------------------------------------------------------------------------
 
 
 class TestCmdHelp:
     def test_lists_builtin_commands(self, handler):
-        handler.cmdHELP([])
+        commands = Commands(handler)
+        commands.help([])
         output = recv(handler)
         assert "EXIT" in output
         assert "HELP" in output
         assert "HISTORY" in output
 
     def test_skips_hidden_commands(self, handler):
-        @command("secret", hidden=True)
-        def cmd_secret(params):
-            pass
+        class MyCommands(Commands):
+            @cmd("secret", hidden=True)
+            def cmd_secret(self, params):
+                """
+                Hidden.
+                """
+                pass
 
-        cmd_secret.__doc__ = "\n Hidden.\n"
-        handler.COMMANDS["SECRET"] = cmd_secret
-        handler.cmdHELP([])
+        commands = MyCommands(handler)
+        commands.help([])
         assert "SECRET" not in recv(handler)
 
     def test_specific_command_shows_full_help(self, handler):
-        handler.cmdHELP(["EXIT"])
+        commands = Commands(handler)
+        commands.help(["EXIT"])
         output = recv(handler)
         assert "EXIT" in output
         assert "Exit the command shell" in output
 
     def test_specific_unknown_shows_not_known(self, handler):
-        handler.cmdHELP(["NOSUCHCMD"])
+        commands = Commands(handler)
+        commands.help(["NOSUCHCMD"])
         assert "not known" in recv(handler)
 
     def test_help_output_is_sorted(self, handler):
-        handler.cmdHELP([])
+        commands = Commands(handler)
+        commands.help([])
         output = recv(handler)
         exit_pos = output.find("EXIT")
         help_pos = output.find("HELP")
@@ -96,47 +114,53 @@ class TestCmdHelp:
         assert exit_pos < help_pos < hist_pos
 
     def test_question_mark_alias_works(self, handler):
-        handler.COMMANDS["?"]([])
+        commands = Commands(handler)
+        commands("?", [])
         assert b"\r\n" in handler.sock.sent
 
 
 # ---------------------------------------------------------------------------
-# cmdEXIT
+# exit command
 # ---------------------------------------------------------------------------
 
 
 class TestCmdExit:
     def test_sets_runshell_false(self, handler):
         handler.RUNSHELL = True
-        handler.cmdEXIT([])
+        commands = Commands(handler)
+        commands.exit([])
         assert handler.RUNSHELL is False
 
     def test_writes_goodbye(self, handler):
-        handler.cmdEXIT([])
+        commands = Commands(handler)
+        commands.exit([])
         assert "Goodbye" in recv(handler)
 
 
 # ---------------------------------------------------------------------------
-# cmdHISTORY
+# history command
 # ---------------------------------------------------------------------------
 
 
 class TestCmdHistory:
     def test_empty_history(self, handler):
         handler.history = []
-        handler.cmdHISTORY([])
+        commands = Commands(handler)
+        commands.history([])
         assert "Command history" in recv(handler)
 
     def test_shows_history_entries(self, handler):
         handler.history = ["first cmd", "second cmd"]
-        handler.cmdHISTORY([])
+        commands = Commands(handler)
+        commands.history([])
         output = recv(handler)
         assert "first cmd" in output
         assert "second cmd" in output
 
     def test_entries_are_numbered(self, handler):
         handler.history = ["a", "b"]
-        handler.cmdHISTORY([])
+        commands = Commands(handler)
+        commands.history([])
         output = recv(handler)
         assert "1" in output
         assert "2" in output
@@ -229,15 +253,22 @@ class TestHandle:
         assert "WELCOME" not in recv(handler) or True  # just confirm no crash
 
     def test_exception_in_command_calls_handle_exception(self, handler):
-        def crashing_cmd(params):
-            raise RuntimeError("boom")
+        class CrashCommands(Commands):
+            @cmd("crash")
+            def do_crash(self, params):
+                """
+                Crash for testing.
+                """
+                raise RuntimeError("boom")
 
-        handler.COMMANDS["CRASH"] = crashing_cmd
+        class CrashHandler(ConcreteHandler):
+            commands_class = CrashCommands
+
+        h = make_handler(CrashHandler)
         readline_calls = iter(["CRASH", "exit"])
-        with mock.patch.object(handler, "readline", side_effect=readline_calls):
-            handler.handle()
-        # handleException writes the traceback then returns True to break the loop
-        assert "RuntimeError" in recv(handler)
+        with mock.patch.object(h, "readline", side_effect=readline_calls):
+            h.handle()
+        assert "RuntimeError" in recv(h)
 
     def test_session_start_called(self, handler):
         calls = []

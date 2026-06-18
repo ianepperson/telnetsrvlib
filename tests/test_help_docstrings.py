@@ -1,4 +1,4 @@
-"""Tests that cmdHELP correctly derives output from command docstrings.
+"""Tests that help correctly derives output from command docstrings.
 
 Docstring format (all three lines required):
   Line 0: parameter synopsis (may be blank)
@@ -7,7 +7,7 @@ Docstring format (all three lines required):
 """
 
 import pytest
-from telnetsrv.telnetsrvlib import command
+from telnetsrv.telnetsrvlib import cmd, Commands
 from tests.conftest import ConcreteHandler, make_handler
 
 
@@ -15,41 +15,64 @@ def recv(handler) -> str:
     return handler.sock.sent.decode("latin-1")
 
 
-def make_handler_with_commands(**commands) -> ConcreteHandler:
-    """Return a handler whose COMMANDS dict contains the given name→function entries."""
-    h = make_handler()
-    for name, fn in commands.items():
-        h.COMMANDS[name.upper()] = fn
-    return h
+def make_commands_for_help(handler, **fns):
+    """Return a Commands instance populated with the given name→function entries.
+
+    Each fn is a plain callable with __doc__ set and optionally command_name /
+    hidden attributes (from the @cmd decorator).  Each entry is wrapped in its
+    own function object so the same fn can safely be passed under multiple names
+    without the entries clobbering each other's command_name attribute.
+    """
+    class_dict = {}
+    for name, fn in fns.items():
+        cmd_name = getattr(fn, "command_name", name.lower())
+        hidden = getattr(fn, "hidden", False)
+        doc = fn.__doc__
+
+        def _make_wrapper(f, cname, h, d):
+            def wrapper(self, params):
+                return f(params)
+            wrapper.__doc__ = d
+            wrapper.command_name = cname
+            wrapper.aliases = []
+            wrapper.hidden = h
+            return wrapper
+
+        class_dict[f"_testfn_{name}"] = _make_wrapper(fn, cmd_name, hidden, doc)
+
+    TestCommands = type("TestCommands", (Commands,), class_dict)
+    return TestCommands(handler)
 
 
 # ---------------------------------------------------------------------------
-# Brief listing (no argument to cmdHELP)
+# Brief listing (no argument to help)
 # ---------------------------------------------------------------------------
 
 
 class TestBriefListing:
     def test_params_and_short_description_shown(self):
-        def cmd(params):
+        def fn(params):
             """<arg1> <arg2>
             Do a thing.
             """
 
-        h = make_handler_with_commands(foo=cmd)
-        h.cmdHELP([])
+        h = make_handler()
+        commands = make_commands_for_help(h, foo=fn)
+        commands.help([])
         output = recv(h)
         assert "FOO" in output
         assert "<arg1> <arg2>" in output
         assert "Do a thing." in output
 
     def test_no_params_shows_dash_and_short_description(self):
-        def cmd(params):
+        def fn(params):
             """
             Do another thing.
             """
 
-        h = make_handler_with_commands(bar=cmd)
-        h.cmdHELP([])
+        h = make_handler()
+        commands = make_commands_for_help(h, bar=fn)
+        commands.help([])
         output = recv(h)
         assert "BAR" in output
         assert "Do another thing." in output
@@ -57,48 +80,52 @@ class TestBriefListing:
         assert "- Do another thing." in output
 
     def test_long_description_not_shown_in_listing(self):
-        def cmd(params):
+        def fn(params):
             """<x>
             Short blurb.
             This is the long description that should not appear in the listing.
             """
 
-        h = make_handler_with_commands(baz=cmd)
-        h.cmdHELP([])
+        h = make_handler()
+        commands = make_commands_for_help(h, baz=fn)
+        commands.help([])
         output = recv(h)
         assert "Short blurb." in output
         assert "long description" not in output
 
     def test_hidden_command_excluded_from_listing(self):
-        @command("secret", hidden=True)
-        def cmd(params):
+        @cmd("secret", hidden=True)
+        def fn(params):
             """
             Super secret.
             """
 
-        h = make_handler_with_commands(secret=cmd)
-        h.cmdHELP([])
+        h = make_handler()
+        commands = make_commands_for_help(h, secret=fn)
+        commands.help([])
         assert "SECRET" not in recv(h)
 
     def test_non_hidden_command_included_in_listing(self):
-        @command("visible")
-        def cmd(params):
+        @cmd("visible")
+        def fn(params):
             """
             Visible command.
             """
 
-        h = make_handler_with_commands(visible=cmd)
-        h.cmdHELP([])
+        h = make_handler()
+        commands = make_commands_for_help(h, visible=fn)
+        commands.help([])
         assert "VISIBLE" in recv(h)
 
     def test_commands_appear_in_sorted_order(self):
-        def cmd(params):
+        def fn(params):
             """
             A command.
             """
 
-        h = make_handler_with_commands(zebra=cmd, apple=cmd, mango=cmd)
-        h.cmdHELP([])
+        h = make_handler()
+        commands = make_commands_for_help(h, zebra=fn, apple=fn, mango=fn)
+        commands.help([])
         output = recv(h)
         apple_pos = output.find("APPLE")
         mango_pos = output.find("MANGO")
@@ -107,51 +134,54 @@ class TestBriefListing:
 
 
 # ---------------------------------------------------------------------------
-# Detailed help (cmdHELP called with a specific command name)
+# Detailed help (help called with a specific command name)
 # ---------------------------------------------------------------------------
 
 
 class TestDetailedHelp:
     def test_params_and_long_description_shown(self):
-        def cmd(params):
+        def fn(params):
             """<file>
             Short blurb.
             This is the long description that explains the command in detail.
             """
 
-        h = make_handler_with_commands(mycmd=cmd)
-        h.cmdHELP(["MYCMD"])
+        h = make_handler()
+        commands = make_commands_for_help(h, mycmd=fn)
+        commands.help(["MYCMD"])
         output = recv(h)
-        assert "MYCD".replace("CD", "CMD"[1:]) or "MYCMD".upper() in output
+        assert "MYCMD" in output
         assert "<file>" in output
         assert "long description" in output
 
     def test_short_description_not_used_as_long_when_long_exists(self):
-        def cmd(params):
+        def fn(params):
             """<x>
             Short blurb.
             This is the real long description.
             """
 
-        h = make_handler_with_commands(cmd=cmd)
-        h.cmdHELP(["CMD"])
+        h = make_handler()
+        commands = make_commands_for_help(h, mycmd=fn)
+        commands.help(["MYCMD"])
         output = recv(h)
         assert "real long description" in output
         assert "Short blurb." not in output
 
     def test_falls_back_to_short_description_when_no_long(self):
-        def cmd(params):
+        def fn(params):
             """<x>
             Only a short description here.
             """
 
-        h = make_handler_with_commands(cmd=cmd)
-        h.cmdHELP(["CMD"])
+        h = make_handler()
+        commands = make_commands_for_help(h, mycmd=fn)
+        commands.help(["MYCMD"])
         output = recv(h)
         assert "Only a short description here." in output
 
     def test_multiline_long_description_fully_shown(self):
-        def cmd(params):
+        def fn(params):
             """
             Short.
             Line one of long.
@@ -159,8 +189,9 @@ class TestDetailedHelp:
             Line three of long.
             """
 
-        h = make_handler_with_commands(cmd=cmd)
-        h.cmdHELP(["CMD"])
+        h = make_handler()
+        commands = make_commands_for_help(h, mycmd=fn)
+        commands.help(["MYCMD"])
         output = recv(h)
         assert "Line one of long." in output
         assert "Line two of long." in output
@@ -168,16 +199,18 @@ class TestDetailedHelp:
 
     def test_unknown_command_reports_not_known(self):
         h = make_handler()
-        h.cmdHELP(["NOSUCHCMD"])
+        commands = Commands(h)
+        commands.help(["NOSUCHCMD"])
         assert "not known" in recv(h)
 
     def test_command_name_case_insensitive(self):
-        def cmd(params):
+        def fn(params):
             """
             Case insensitive lookup.
             """
 
-        h = make_handler_with_commands(mycase=cmd)
-        h.cmdHELP(["mycase"])
+        h = make_handler()
+        commands = make_commands_for_help(h, mycase=fn)
+        commands.help(["mycase"])
         output = recv(h)
         assert "Case insensitive lookup." in output
