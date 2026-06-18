@@ -1032,7 +1032,7 @@ class TelnetHandlerBase(socketserver.BaseRequestHandler):
                             if len(keyseq) == 0:
                                 continue
                             while (
-                                codes == keyseq[: len(codes)] and len(codes) <= keyseq
+                                codes == keyseq[: len(codes)] and len(codes) <= len(keyseq)
                             ):
                                 if codes == keyseq:
                                     c = self.ESCSEQ[keyseq]

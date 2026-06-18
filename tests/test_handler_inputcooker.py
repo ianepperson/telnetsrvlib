@@ -1,5 +1,6 @@
 """Tests for the input cooker: raw socket → cooked queue."""
 
+import curses
 import pytest
 from unittest import mock
 
@@ -9,6 +10,7 @@ from telnetsrv.telnetsrvlib import (
     WILL,
     ECHO,
     theNULL,
+    ESC,
 )
 from tests.conftest import MockSocket
 
@@ -136,3 +138,35 @@ class TestInputCooker:
         handler.sock = MockSocket(b"")
         # EOFError raised when socket returns b'' — covered by _run
         handler.inputcooker()  # must not propagate
+
+
+class TestInputCookerEscapeSequences:
+    """Tests for escape-sequence (arrow key) recognition in inputcooker.
+
+    The left arrow key sends ESC + '[' + 'D' (three chars).  ESCSEQ maps
+    that string to the curses key code.  The while-loop condition in
+    inputcooker compared len(codes) <= keyseq (int <= str), raising
+    TypeError in Python 3.
+    """
+
+    LEFT_ARROW_SEQ = ESC + "[D"
+
+    def _run(self, handler, rawq_data: str):
+        handler.rawq = rawq_data
+        handler.sock = MockSocket(b"")
+        handler.inputcooker()
+
+    def test_left_arrow_translates_to_key_code(self, handler):
+        """Pressing left arrow should store curses.KEY_LEFT in the cooked queue."""
+        handler.ESCSEQ = {self.LEFT_ARROW_SEQ: curses.KEY_LEFT}
+        self._run(handler, self.LEFT_ARROW_SEQ)
+        assert curses.KEY_LEFT in handler.cookedq
+
+    def test_escape_sequence_does_not_raise_type_error(self, handler):
+        """inputcooker must not raise TypeError when processing a key sequence."""
+        handler.ESCSEQ = {self.LEFT_ARROW_SEQ: curses.KEY_LEFT}
+        # Before the fix, len(codes) <= keyseq (int <= str) raised TypeError.
+        try:
+            self._run(handler, self.LEFT_ARROW_SEQ)
+        except TypeError as exc:
+            pytest.fail(f"inputcooker raised TypeError: {exc}")
