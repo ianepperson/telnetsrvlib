@@ -14,6 +14,8 @@ authors = [
 keywords = ["gevent", "telnet", "server"]
 classifiers = [
     "Programming Language :: Python",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Development Status :: 4 - Beta",
     "Environment :: Other Environment",
     "Intended Audience :: Developers",
@@ -50,6 +52,13 @@ include = [
     "README.md",
     "COPYING.txt",
 ]
+
+[project.scripts]
+lint = "telnetsrv._lint:main"
+
+[tool.black]
+line-length = 88
+target-version = ["py39", "py310", "py311", "py312"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "example-test.py"]

@@ -10,7 +10,7 @@ import pytest
 with mock.patch("sys.argv", ["example", "8023"]):
     import example
 
-from example import MyServer, MyCommands, TestTelnetHandler
+from example import MyServer, MyCommands, ExampleTelnetHandler
 
 from tests.conftest import make_handler
 
@@ -20,7 +20,7 @@ def recv(handler) -> str:
 
 
 def make_example_handler():
-    return make_handler(TestTelnetHandler)
+    return make_handler(ExampleTelnetHandler)
 
 
 # ---------------------------------------------------------------------------
@@ -247,26 +247,26 @@ class TestMyCommands:
 
 
 # ---------------------------------------------------------------------------
-# TestTelnetHandler
+# ExampleTelnetHandler
 # ---------------------------------------------------------------------------
 
 
 class TestExampleHandler:
     def test_prompt_is_configured(self):
         """The handler uses the example-specific prompt string."""
-        assert TestTelnetHandler.PROMPT == "TestServer> "
+        assert ExampleTelnetHandler.PROMPT == "TestServer> "
 
     def test_welcome_mentions_test_server(self):
         """The WELCOME message identifies this as the test server."""
-        assert "test server" in TestTelnetHandler.WELCOME.lower()
+        assert "test server" in ExampleTelnetHandler.WELCOME.lower()
 
     def test_auth_need_user_is_true(self):
         """The handler requires a username to be entered at login."""
-        assert TestTelnetHandler.authNeedUser is True
+        assert ExampleTelnetHandler.authNeedUser is True
 
     def test_auth_need_pass_is_false(self):
         """The handler does not request a password at login."""
-        assert TestTelnetHandler.authNeedPass is False
+        assert ExampleTelnetHandler.authNeedPass is False
 
     def test_auth_callback_accepts_nonempty_username(self):
         """Any non-empty username is accepted by authCallback."""
@@ -304,7 +304,7 @@ class TestExampleHandler:
         """session_start reports the incremented global connection number to the client."""
         h = make_example_handler()
         h.username = "alice"
-        before = TestTelnetHandler.myserver.connection_count
+        before = ExampleTelnetHandler.myserver.connection_count
         h.session_start()
         # myserver is a class-level singleton; verify the count incremented
         assert str(before + 1) in recv(h)
@@ -341,4 +341,4 @@ class TestExampleHandler:
 
     def test_commands_class_is_my_commands(self):
         """The handler is wired to dispatch commands through MyCommands."""
-        assert TestTelnetHandler.commands_class is MyCommands
+        assert ExampleTelnetHandler.commands_class is MyCommands

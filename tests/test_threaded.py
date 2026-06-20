@@ -5,10 +5,8 @@ import socketserver
 import threading
 import time
 import pytest
-from unittest import mock
 
 from telnetsrv.threaded import TelnetHandler, cmd, Commands
-
 
 # ---------------------------------------------------------------------------
 # Server / handler fixtures

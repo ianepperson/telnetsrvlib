@@ -102,19 +102,28 @@ Do not commit a code fix without a corresponding test that was failing before th
 
 ## Code Style
 
+Run the combined lint check (black + flake8) with:
+
+```bash
+uv run lint
+```
+
+This is what CI runs on every pull request. Fix all failures before submitting.
+
 Format with black (line length 88):
 
 ```bash
-black telnetsrv/ tests/
+uv run black telnetsrv/ tests/
 ```
 
-Lint with flake8:
+Lint with flake8 alone:
 
 ```bash
-flake8 telnetsrv/ tests/
+uv run flake8 telnetsrv/ tests/
 ```
 
-Flake8 config in `.flake8`: ignores E203 and W503 (both conflict with black).
+Flake8 config in `.flake8`: ignores E203 and W503 (conflict with black); ignores F405
+in `telnetsrvlib.py` (star import from `constants` is intentional).
 
 ## Test Fixtures
 
@@ -131,9 +140,12 @@ examples of testing full handler flows.
 
 ## CI
 
-GitHub Actions runs the test suite on Python 3.9, 3.10, 3.11, and 3.12 on every
-pull request and push to master. See `.github/workflows/ci.yml`. CI does not run
-coverage checks; that is a local/PR responsibility.
+GitHub Actions runs on every pull request and push to master. See `.github/workflows/ci.yml`.
+
+- **lint job** — runs `uv run lint` (black --check + flake8) on Python 3.12
+- **test job** — runs `pytest` across Python 3.9, 3.10, 3.11, and 3.12
+
+CI does not run coverage checks; that is a local/PR responsibility.
 
 ## Docstrings
 

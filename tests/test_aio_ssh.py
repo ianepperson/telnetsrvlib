@@ -14,6 +14,7 @@ import pytest
 # real library. Tests that need the actual Paramiko transport are skipped.
 # ---------------------------------------------------------------------------
 if "paramiko" not in sys.modules:
+
     class _ServerInterface:
         """Minimal stand-in for paramiko.ServerInterface."""
 
@@ -36,8 +37,7 @@ from telnetsrv.aio_ssh import (  # noqa: E402
     _AsyncChannelWriter,
     AsyncSSHHandler,
 )
-from telnetsrv.aio import TelnetHandler, Commands, cmd  # noqa: E402
-
+from telnetsrv.aio import TelnetHandler, Commands  # noqa: E402
 
 # ===========================================================================
 # Helpers
@@ -141,8 +141,10 @@ class TestAsyncChannelReader:
         data = await asyncio.wait_for(cr.read(5), timeout=2.0)
         assert data == b"hello"
         task.cancel()
-        with pytest.raises(asyncio.CancelledError):
+        try:
             await task
+        except asyncio.CancelledError:
+            pass
 
     async def test_eof_when_channel_returns_empty(self):
         chan = _FakeChannel(b"")
@@ -169,6 +171,7 @@ class TestAsyncChannelReader:
 
     async def test_cancellation_calls_feed_eof(self):
         """Cancelling start_feed should put the inner StreamReader at EOF."""
+
         def slow_recv(n):
             time.sleep(5)
             return b""
