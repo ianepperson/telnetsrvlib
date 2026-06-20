@@ -21,6 +21,8 @@ if "paramiko" not in sys.modules:
     _stub.Transport = mock.MagicMock
     _stub.ServerInterface = _ServerInterface
     _stub.RSAKey = mock.MagicMock
+    _stub.Ed25519Key = mock.MagicMock
+    _stub.PKey = mock.MagicMock
     _stub.SSHException = Exception
     _stub.AUTH_SUCCESSFUL = 1
     _stub.AUTH_FAILED = 0
