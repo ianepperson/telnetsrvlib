@@ -70,17 +70,20 @@ class MyCommands(Commands):
         '''[<params>]*
         Echos back the raw received parameters.
         '''
-        self.writeresponse("params == %r" % params)
+        self.handler.writeresponse("params == %r" % params)
 
     @cmd
     def info(self, params):
         '''
         Provides some information about the current terminal.
         '''
-        self.writeresponse( "Username: %s, terminal type: %s" % (self.username, self.TERM) )
-        self.writeresponse( "Command history:" )
-        for c in self.history:
-            self.writeresponse("  %r" % c)
+        self.handler.writeresponse(
+            f"Username: {self.handler.username}, "
+            f"terminal type: {self.handler.TERM}"
+        )
+        self.handler.writeresponse( "Command history:" )
+        for c in self.handler.history:
+            self.handler.writeresponse("  %r" % c)
 
     @cmd(['timer', 'timeit'])
     def timer(self, params):
