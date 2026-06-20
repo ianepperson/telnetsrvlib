@@ -34,6 +34,8 @@ log = logging.getLogger(__name__)
 
 from .constants import *  # noqa: E402, F401, F403
 
+__all__ = ["cmd", "Commands", "InputSimple", "InputBashLike", "TelnetHandlerBase"]
+
 
 def _decorate(fn: Callable, name: str, aliases: list[str], hidden: bool) -> Callable:
     if hasattr(fn, "aliases"):
