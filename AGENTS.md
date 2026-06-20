@@ -31,13 +31,7 @@ until the docs reflect it.
 ## Environment Setup
 
 ```bash
-pip install ".[ssh,dev]"
-```
-
-Or with uv:
-
-```bash
-uv pip install ".[ssh,dev]"
+uv sync --extra ssh --extra dev
 ```
 
 The `dev` extras install pytest, pytest-asyncio, pytest-cov, black, and flake8.
@@ -45,13 +39,13 @@ The `dev` extras install pytest, pytest-asyncio, pytest-cov, black, and flake8.
 ## Running Tests
 
 ```bash
-pytest
+uv run pytest
 ```
 
 Run with coverage:
 
 ```bash
-pytest --cov=telnetsrv --cov-report=term-missing
+uv run pytest --cov=telnetsrv --cov-report=term-missing
 ```
 
 Tests live in `tests/` and `example-test.py`. Pytest config is in `pyproject.toml`
