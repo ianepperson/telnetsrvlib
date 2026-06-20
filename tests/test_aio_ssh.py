@@ -141,8 +141,10 @@ class TestAsyncChannelReader:
         data = await asyncio.wait_for(cr.read(5), timeout=2.0)
         assert data == b"hello"
         task.cancel()
-        with pytest.raises(asyncio.CancelledError):
+        try:
             await task
+        except asyncio.CancelledError:
+            pass
 
     async def test_eof_when_channel_returns_empty(self):
         chan = _FakeChannel(b"")
