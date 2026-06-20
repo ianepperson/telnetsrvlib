@@ -268,6 +268,18 @@ class MyCommands(Commands):
             self.handler.writeresponse(result)
 ```
 
+When using the async handler, `_command_not_found` may also be a coroutine:
+
+```python
+class MyCommands(Commands):
+    async def _command_not_found(self, command, params):
+        result = await my_backend.run(command, params)
+        if result is None:
+            self.handler.writeerror(f"Unknown command '{command}'")
+        else:
+            self.handler.writeresponse(result)
+```
+
 
 ## Console Information
 
