@@ -155,6 +155,58 @@ def writeresponse(self, text):
 Private methods (prefixed with `_`) and `__dunder__` methods are exempt, but a
 docstring is still welcome when the logic is non-obvious.
 
+## Publishing to PyPI
+
+### Prerequisites
+
+- PyPI account with publish rights to `telnetsrv`
+- API token from https://pypi.org/manage/account/token/ (scoped to `telnetsrv`)
+
+### Version bump
+
+Edit `version` in `pyproject.toml`:
+
+```toml
+[project]
+version = "1.1"  # increment appropriately
+```
+
+Follow [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
+
+### Build
+
+Clean old artifacts first to avoid uploading stale files:
+
+```bash
+rm -rf dist/
+uv build
+```
+
+This produces a wheel and source distribution in `dist/`.
+
+### Publish
+
+```bash
+UV_PUBLISH_TOKEN=pypi-<your-token-here> uv publish
+```
+
+Or pass the token explicitly:
+
+```bash
+uv publish --token pypi-<your-token-here>
+```
+
+`uv publish` uploads everything in `dist/` to PyPI. Confirm the release at
+https://pypi.org/project/telnetsrv/ after it completes.
+
+### Checklist before publishing
+
+1. All tests pass: `uv run pytest`
+2. Coverage ≥ 90%: `uv run pytest --cov=telnetsrv --cov-report=term-missing`
+3. `README.md` reflects the release (new API, changed behavior, etc.)
+4. Version in `pyproject.toml` is bumped
+5. `dist/` contains only the new artifacts (no leftover old-version files)
+
 ## Key Patterns
 
 - Commands are defined as methods on a `Commands` subclass, decorated with `@cmd`.
