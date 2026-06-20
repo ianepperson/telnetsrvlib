@@ -33,8 +33,6 @@ Homepage = "https://github.com/ianepperson/telnetsrvlib"
 [project.optional-dependencies]
 green = ["gevent"]
 ssh = ["paramiko"]
-
-[dependency-groups]
 dev = [
     "black>=24.0",
     "flake8>=7.0",
