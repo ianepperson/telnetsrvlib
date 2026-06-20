@@ -37,9 +37,15 @@ from .constants import *  # noqa: E402, F401, F403
 __all__ = ["cmd", "Commands", "InputSimple", "InputBashLike", "TelnetHandlerBase"]
 
 
-def _decorate_a_cmd(
+def _decorate_cmd(
     fn: Callable, name: str, aliases: list[str], hidden: bool
 ) -> Callable:
+    """Stamp command metadata onto fn and return it.
+
+    Sets fn.command_name, fn.aliases, and fn.hidden. When stacked decorators
+    are present (fn already has aliases), merges the new name/aliases into the
+    existing list rather than overwriting.
+    """
     if hasattr(fn, "aliases"):
         # More than one decorator: prepend to the existing alias list.
         fn.aliases.append(fn.command_name)
@@ -54,25 +60,43 @@ def _decorate_a_cmd(
 
 
 def cmd(names: str | list[str] | Callable, hidden: bool = False) -> Callable:
+    """Decorator that registers a method as a telnet command.
+
+    Usage::
+
+        @cmd('echo')
+        def echo(self, params): ...
+
+        @cmd(['copy', 'repeat'])
+        def copy(self, params): ...
+
+        @cmd('secret', hidden=True)
+        def secret(self, params): ...
+
+    ``names`` may be a string, a list of strings (first is canonical, rest are
+    aliases), or the bare function (when the decorator is used without arguments,
+    the function name is used as the command name).  Pass ``hidden=True`` to
+    suppress the command from help listings.
+    """
     if isinstance(names, Callable):
         # bare decorator without any options
         fn = names
-        return _decorate_a_cmd(fn, fn.__name__, [], hidden)
+        return _decorate_cmd(fn, fn.__name__, [], hidden)
     if isinstance(names, str):
         # decorator with one option - the name, and maybe hidden
-        def _decorate_a_cmd_fn(fn: Callable):
-            return _decorate_a_cmd(fn, names, [], hidden)
+        def _decorate_cmd_fn(fn: Callable):
+            return _decorate_cmd(fn, names, [], hidden)
 
-        return _decorate_a_cmd_fn
+        return _decorate_cmd_fn
 
     # only reaching this point if names is a list of names
     name = names[0]
     alias = list(names[1:])
 
-    def _decorate_a_cmd_fn(fn: Callable):
-        return _decorate_a_cmd(fn, name, alias, hidden)
+    def _decorate_cmd_fn(fn: Callable):
+        return _decorate_cmd(fn, name, alias, hidden)
 
-    return _decorate_a_cmd_fn
+    return _decorate_cmd_fn
 
 
 class Commands:
