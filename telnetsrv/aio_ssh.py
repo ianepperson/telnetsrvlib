@@ -12,7 +12,8 @@ from paramiko import Transport
 
 from .paramiko_ssh import (
     SSHHandler,
-    getRsaKeyFile,  # noqa: F401 — re-exported for user convenience
+    getKeyFile,  # noqa: F401 — re-exported for user convenience
+    getRsaKeyFile,  # noqa: F401 — deprecated alias, re-exported for backward compat
 )
 
 log = logging.getLogger(__name__)

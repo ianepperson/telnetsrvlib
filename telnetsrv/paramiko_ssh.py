@@ -8,6 +8,8 @@ from paramiko import (
     Transport,
     ServerInterface,
     RSAKey,
+    Ed25519Key,
+    PKey,
     SSHException,
     AUTH_SUCCESSFUL,
     AUTH_FAILED,
@@ -19,14 +21,19 @@ from paramiko import (
 log = logging.getLogger(__name__)
 
 
-def getRsaKeyFile(filename, password=None):
+def getKeyFile(filename, password=None):
     try:
-        key = RSAKey(filename=filename, password=password)
+        key = PKey.from_path(filename, password=password)
     except IOError:
-        log.info("Generating new server RSA key and saving in file %r." % filename)
-        key = RSAKey.generate(1024)
+        log.info("Generating new server Ed25519 key and saving in file %r.", filename)
+        key = Ed25519Key.generate()
         key.write_private_key_file(filename, password=password)
     return key
+
+
+def getRsaKeyFile(filename, password=None):
+    """Deprecated: use getKeyFile() instead."""
+    return getKeyFile(filename, password=password)
 
 
 class TelnetToPtyHandler(object):
@@ -98,7 +105,7 @@ class SSHHandler(ServerInterface, BaseRequestHandler):
                 )
                 raise NotImplementedError(
                     "Host key not set!  SSHHandler instance must define host_key."
-                    '  Try host_key = paramiko_ssh.getRsaKeyFile("server_rsa.key").'
+                    '  Try host_key = paramiko_ssh.getKeyFile("server.key").'
                 )
 
         if self.warn_of_insecure_auth and "none" in self.get_allowed_auths("").split(","):

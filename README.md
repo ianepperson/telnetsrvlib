@@ -554,28 +554,32 @@ a PTY channel, the transport will disconnect after a timeout.
 
 ### SSH Host Key
 
-To thwart man-in-the-middle attacks, every SSH server provides an RSA key as a unique fingerprint. This unique key
-should never change, and should be stored in a local file or a database. The `getRsaKeyFile` makes this
-easy by reading the given key file if it exists, or creating the key if it does not. The result should be
+To thwart man-in-the-middle attacks, every SSH server provides a key as a unique fingerprint. This unique key
+should never change, and should be stored in a local file or a database. `getKeyFile` makes this
+easy by reading the given key file if it exists, or generating a new Ed25519 key if it does not. The result should be
 read once and set in the class definition.
 
 Easy way:
 
-`host_key = getRsaKeyFile( FILENAME )` — If the FILENAME can be read, the RSA key is read in and returned as an RSAKey object. If the file can't be read, it generates a new RSA key and stores it in that file.
+`host_key = getKeyFile( FILENAME )` — If FILENAME can be read, the key is read in and returned. Reads any key type supported by paramiko (Ed25519, RSA, ECDSA). If the file can't be read, generates a new Ed25519 key and stores it in that file.
 
 Long way:
 
 ```python
-from paramiko import RSAKey
+from paramiko import Ed25519Key, PKey
 
-# Make a new key - should only be done once per server during setup
-new_key = RSAKey.generate(1024)
-save_to_my_database( 'server_fingerprint',  str(new_key) )
+# Generate a new key - should only be done once per server during setup
+new_key = Ed25519Key.generate()
+new_key.write_private_key_file('server.key')
 
 ...
 
-host_key = RSAKey( data=get_from_my_database('server_fingerprint') )
+host_key = PKey.from_path('server.key')
 ```
+
+> **Upgrading from paramiko < 5:** Existing RSA host key files are read without modification — `getKeyFile` auto-detects the key type. Clients connecting via the legacy `ssh-rsa` algorithm (SHA-1) will no longer be able to connect; modern SSH clients use `rsa-sha2-256`, `rsa-sha2-512`, or Ed25519 and are unaffected.
+
+> **`getRsaKeyFile` is deprecated** but still works as an alias for `getKeyFile`.
 
 ### SSH Authentication
 
@@ -590,7 +594,7 @@ warning by setting `warn_of_insecure_auth = False` in your `SSHHandler` subclass
 
 ```python
 class MySSHHandler(SSHHandler):
-    host_key = getRsaKeyFile('server_fingerprint.key')
+    host_key = getKeyFile('server_fingerprint.key')
     telnet_handler = MyTelnetHandler
     warn_of_insecure_auth = False  # suppress warning: no auth is intentional
 ```
@@ -608,7 +612,7 @@ to instead override the authentication callbacks as needed.
 ```python
 from gevent import monkey; monkey.patch_all()
 import gevent.server
-from telnetsrv.paramiko_ssh import SSHHandler, getRsaKeyFile
+from telnetsrv.paramiko_ssh import SSHHandler, getKeyFile
 from telnetsrv.green import TelnetHandler, cmd, Commands
 
 class MyCommands(Commands):
@@ -626,7 +630,7 @@ class MyTelnetHandler(TelnetHandler):
 
 class MySSHHandler(SSHHandler):
     # Set the unique host key
-    host_key = getRsaKeyFile('server_fingerprint.key')
+    host_key = getKeyFile('server_fingerprint.key')
 
     # Instruct this SSH handler to use MyTelnetHandler for any PTY connections
     telnet_handler = MyTelnetHandler
@@ -655,7 +659,7 @@ sshserver.serve_forever()
 
 ```python
 import socketserver
-from telnetsrv.aio_ssh import AsyncSSHHandler, getRsaKeyFile
+from telnetsrv.aio_ssh import AsyncSSHHandler, getKeyFile
 from telnetsrv.aio import TelnetHandler, cmd, Commands
 
 class MyCommands(Commands):
@@ -672,7 +676,7 @@ class MyTelnetHandler(TelnetHandler):
     commands_class = MyCommands
 
 class MySSHHandler(AsyncSSHHandler):
-    host_key = getRsaKeyFile('server_fingerprint.key')
+    host_key = getKeyFile('server_fingerprint.key')
     telnet_handler = MyTelnetHandler
 
     def authCallbackUsername(self, username):
