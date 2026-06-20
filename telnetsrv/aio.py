@@ -191,6 +191,7 @@ class TelnetHandler(TelnetHandlerBase):
         # Do NOT call TelnetHandlerBase.__init__: that delegates to
         # socketserver.BaseRequestHandler.__init__ which synchronously invokes
         # setup() → handle() → finish().  We manage the lifecycle ourselves.
+        self._task_ic: asyncio.Task | None = None
         self.DOECHO = True
         self.DOOPTS: dict[str, bool | None] = {}
         self.WILLOPTS: dict[str, bool | str] = {}
@@ -236,11 +237,24 @@ class TelnetHandler(TelnetHandlerBase):
 
     async def _run(self) -> None:
         """Full connection lifecycle: setup → handle → finish."""
-        await self.setup()
+        try:
+            await self.setup()
+        except BaseException:
+            await self._cancel_task_ic()
+            raise
         try:
             await self.handle()
         finally:
             await self.finish()
+
+    async def _cancel_task_ic(self) -> None:
+        """Cancel the inputcooker task if it was created, swallowing CancelledError."""
+        if self._task_ic is not None and not self._task_ic.done():
+            self._task_ic.cancel()
+            try:
+                await self._task_ic
+            except asyncio.CancelledError:
+                pass
 
     # -------------------------------------------------------------------------
     # Lifecycle
@@ -267,11 +281,7 @@ class TelnetHandler(TelnetHandlerBase):
     async def finish(self) -> None:
         """Tear down the connection and call session_end."""
         log.debug("Session disconnected.")
-        self._task_ic.cancel()
-        try:
-            await self._task_ic
-        except asyncio.CancelledError:
-            pass
+        await self._cancel_task_ic()
         try:
             self.writer.close()
             await self.writer.wait_closed()
@@ -518,7 +528,11 @@ class TelnetHandler(TelnetHandlerBase):
                     self._readline_echo(BELL, echo)
                 continue
             else:
-                if isinstance(c, str) and ord(c) < 32:
+                if not isinstance(c, str):
+                    # Unrecognised integer key code (e.g. KEY_HOME, KEY_PPAGE).
+                    self._readline_echo(BELL, echo)
+                    continue
+                if ord(c) < 32:
                     c = curses.ascii.unctrl(c)
                 if len(line) > insptr:
                     self._readline_insert(c, echo, insptr, line)
@@ -528,6 +542,7 @@ class TelnetHandler(TelnetHandlerBase):
             insptr += len(c)
             if self._readline_do_echo(echo):
                 self._current_line = line
+        return ""  # unreachable; satisfies type checkers
 
     # -------------------------------------------------------------------------
     # Authentication

@@ -77,15 +77,21 @@ class _AsyncChannelWriter:
 
     def __init__(self, channel) -> None:
         self._channel = channel
+        self._write_error: Exception | None = None
 
     def write(self, data: bytes) -> None:
+        if self._write_error:
+            return
         try:
             self._channel.sendall(data)
-        except Exception:
-            pass
+        except Exception as exc:
+            log.debug("SSH channel write failed: %s", exc)
+            self._write_error = exc
 
     async def drain(self) -> None:
-        """No-op: sendall() is synchronous."""
+        """Raise any deferred write error so the handler can detect a broken channel."""
+        if self._write_error:
+            raise self._write_error
 
     def close(self) -> None:
         pass

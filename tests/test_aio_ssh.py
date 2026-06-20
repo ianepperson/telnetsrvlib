@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import time
 import types
 from unittest import mock
 import pytest
@@ -161,8 +162,6 @@ class TestAsyncChannelReader:
 
     async def test_cancellation_calls_feed_eof(self):
         """Cancelling start_feed should put the inner StreamReader at EOF."""
-        import time
-
         def slow_recv(n):
             time.sleep(5)
             return b""
@@ -237,6 +236,16 @@ class TestAsyncChannelWriter:
         cw.write(b"foo")
         cw.write(b"bar")
         assert chan.sent == b"foobar"
+
+    async def test_drain_raises_if_write_failed(self):
+        """Bug 3: a sendall failure must be surfaced on the next drain() so the
+        handler's ``await writer.drain()`` can detect a broken connection."""
+        chan = mock.MagicMock()
+        chan.sendall.side_effect = OSError("broken pipe")
+        cw = _AsyncChannelWriter(chan)
+        cw.write(b"data")
+        with pytest.raises(OSError):
+            await cw.drain()
 
 
 # ===========================================================================

@@ -528,6 +528,16 @@ class TestAsyncReadline:
         with pytest.raises(EOFError):
             await h.readline()
 
+    async def test_unrecognized_integer_key_is_ignored(self):
+        """Bug 1: curses key codes not handled by readline (e.g. KEY_PPAGE) must be
+        silently ignored, not crash with TypeError on len(c)."""
+        h = make_handler()
+        # KEY_PPAGE (page-up) is not handled in the readline elif chain; it should
+        # ring the bell and continue, not raise TypeError at ``len(c)``.
+        feed(h, [curses.KEY_PPAGE, chr(10)])
+        result = await h.readline()
+        assert result == ""
+
 
 # ===========================================================================
 # authentication_ok (async)
@@ -714,6 +724,55 @@ class TestAsyncFinish:
         await h.finish()
         assert h._task_ic.cancelled()
 
+    async def test_task_ic_cleaned_up_if_setup_raises(self):
+        """Bug 4: if setup() raises after creating _task_ic, _run() must cancel
+        the task rather than leaking it.
+
+        Uses a never-returning reader so the inputcooker would run forever
+        without an explicit cancellation — exposing the leak.
+        """
+        class _HangingReader:
+            async def read(self, n=-1):
+                await asyncio.sleep(9999)  # never returns during the test
+                return b""
+
+        class BrokenSetupHandler(_BaseTestHandler):
+            async def setup(self):
+                self.reader = _HangingReader()
+                self.setterm(self.TERM)
+                self.sock = None
+                self._task_ic = asyncio.create_task(self.inputcooker())
+                raise RuntimeError("setup failed after task creation")
+
+        h = make_handler(BrokenSetupHandler)
+        with pytest.raises(RuntimeError):
+            await h._run()
+
+        # One event-loop tick so any cancellation can propagate.
+        await asyncio.sleep(0)
+        # Without the fix the task keeps sleeping indefinitely (not done).
+        assert h._task_ic.done()
+
+
+# ===========================================================================
+# _read_until helper
+# ===========================================================================
+
+
+class TestReadUntil:
+    async def test_does_not_use_deprecated_get_event_loop(self):
+        """Bug 2: _read_until must call asyncio.get_running_loop(), not the
+        deprecated asyncio.get_event_loop()."""
+        reader = asyncio.StreamReader()
+        reader.feed_data(b"hello")
+        reader.feed_eof()
+
+        # Patch get_event_loop to raise so we'd know immediately if it's called.
+        with mock.patch("asyncio.get_event_loop", side_effect=RuntimeError("use get_running_loop")):
+            result = await _read_until(reader, b"hello", timeout=1.0)
+
+        assert b"hello" in result
+
 
 # ===========================================================================
 # Integration: real asyncio server
@@ -748,9 +807,9 @@ def _strip_iac(data: bytes) -> bytes:
 
 async def _read_until(reader, marker: bytes, timeout: float = 3.0) -> bytes:
     buf = b""
-    deadline = asyncio.get_event_loop().time() + timeout
+    deadline = asyncio.get_running_loop().time() + timeout
     while marker not in buf:
-        remaining = deadline - asyncio.get_event_loop().time()
+        remaining = deadline - asyncio.get_running_loop().time()
         if remaining <= 0:
             break
         try:
