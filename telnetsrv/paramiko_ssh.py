@@ -16,7 +16,7 @@ from paramiko import (
     OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED,
 )
 
-__all__ = ["SSHHandler", "getKeyFile", "getRsaKeyFile"]
+__all__ = ["TelnetToPtyHandler", "SSHHandler", "getKeyFile", "getRsaKeyFile"]
 
 log = logging.getLogger(__name__)
 
