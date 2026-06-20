@@ -31,7 +31,7 @@ from .telnetsrvlib import (
     Commands,
 )
 
-__all__ = ["TelnetHandler", "cmd", "Commands"]
+__all__ = ["AsyncInputBashLike", "TelnetHandler", "cmd", "Commands"]
 
 log = logging.getLogger(__name__)
 

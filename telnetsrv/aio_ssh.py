@@ -14,7 +14,7 @@ from .paramiko_ssh import (
     getRsaKeyFile,
 )
 
-__all__ = ["AsyncSSHHandler", "getKeyFile", "getRsaKeyFile"]
+__all__ = ["AsyncTelnetToPtyHandler", "AsyncSSHHandler", "getKeyFile", "getRsaKeyFile"]
 
 log = logging.getLogger(__name__)
 
