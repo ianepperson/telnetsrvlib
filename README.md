@@ -347,7 +347,7 @@ Within these methods, `self` is the handler, so I/O methods are called directly 
 If you want to change how the output is displayed, override one or all of the
 write methods on `TelnetHandler`. Make sure you call back to the base class when doing so.
 This is a good way to provide color to your console by using ANSI color commands.
-See (the ANSI Wikipedia article)[https://en.wikipedia.org/wiki/ANSI_escape_code]
+See [the ANSI Wikipedia article](https://en.wikipedia.org/wiki/ANSI_escape_code)
 
 - `writemessage( TEXT )`
 - `writeresponse( TEXT )`
