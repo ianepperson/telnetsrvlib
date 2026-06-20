@@ -157,9 +157,13 @@ class TestAsyncChannelReader:
         d1 = await asyncio.wait_for(cr.read(1), timeout=2.0)
         d2 = await asyncio.wait_for(cr.read(1), timeout=2.0)
         assert d1 + d2 == b"ab"
+        # start_feed may have already exited naturally after feeding all 2 bytes,
+        # so tolerate both a clean finish and a cancellation.
         task.cancel()
-        with pytest.raises(asyncio.CancelledError):
+        try:
             await task
+        except asyncio.CancelledError:
+            pass
 
     async def test_cancellation_calls_feed_eof(self):
         """Cancelling start_feed should put the inner StreamReader at EOF."""
