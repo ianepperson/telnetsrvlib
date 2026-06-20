@@ -86,6 +86,18 @@ class MyHandler(TelnetHandler):
    commands_class = MyCommands
 ```
 
+### Async (asyncio)
+
+```python
+from telnetsrv.aio import TelnetHandler, cmd, Commands
+
+class MyCommands(Commands):
+   ...
+
+class MyHandler(TelnetHandler):
+   commands_class = MyCommands
+```
+
 ## Adding Commands
 
 Commands are defined as methods of a `Commands` subclass, decorated with `@cmd`.
@@ -390,6 +402,46 @@ server = gevent.server.StreamServer(("", 8023), MyHandler.streamserver_handle)
 server.serve_forever()
 ```
 
+### Async
+
+Pass the `asyncio_handle` classmethod to `asyncio.start_server`. No extra dependencies are
+required — asyncio is part of the Python standard library.
+
+```python
+import asyncio
+
+async def main():
+    server = await asyncio.start_server(
+        MyHandler.asyncio_handle, host="", port=8023
+    )
+    async with server:
+        await server.serve_forever()
+
+asyncio.run(main())
+```
+
+Command methods may be regular functions **or** coroutines; the handler detects and awaits
+coroutines automatically:
+
+```python
+class MyCommands(Commands):
+    @cmd('timer')
+    async def timer(self, params):
+        '''<time> <message>
+        In <time> seconds, display <message>.
+        '''
+        try:
+            delay, message = int(params[0]), params[1]
+        except (ValueError, IndexError):
+            self.handler.writeerror("Need both a time and a message")
+            return
+        self.handler.writeresponse(f"Waiting {delay} seconds...")
+        await asyncio.sleep(delay)
+        self.handler.writemessage(message)
+```
+
+`session_start` and `session_end` may also be defined as coroutines in the async handler.
+
 
 ## Short Example
 
@@ -461,6 +513,18 @@ importing from `paramiko_ssh`.
 ```python
 import eventlet; eventlet.monkey_patch(all=True)
 from telnetsrv.paramiko_ssh import SSHHandler, getRsaKeyFile
+```
+
+### Async
+
+The `aio_ssh` module provides `AsyncSSHHandler`, which pairs with an `aio.TelnetHandler` subclass.
+Paramiko's SSH transport is still blocking and thread-based; once a PTY channel is established,
+`asyncio.run()` creates a fresh event loop in that thread and runs the async handler inside it.
+No monkey-patching is needed.
+
+```python
+from telnetsrv.aio_ssh import AsyncSSHHandler, getRsaKeyFile
+from telnetsrv.aio import TelnetHandler, cmd, Commands
 ```
 
 
@@ -568,6 +632,46 @@ telnetserver.start()
 # Start an SSH server for any local or remote host on port 8022
 sshserver = gevent.server.StreamServer(("", 8022), MySSHHandler.streamserver_handle)
 sshserver.serve_forever()
+```
+
+
+## Short Async SSH Example
+
+```python
+import socketserver
+from telnetsrv.aio_ssh import AsyncSSHHandler, getRsaKeyFile
+from telnetsrv.aio import TelnetHandler, cmd, Commands
+
+class MyCommands(Commands):
+    @cmd(['echo', 'copy', 'repeat'])
+    async def echo(self, params):
+        '''<text to echo>
+        Echo text back to the console.
+
+        '''
+        self.handler.writeresponse(' '.join(params))
+
+class MyTelnetHandler(TelnetHandler):
+    WELCOME = "Welcome to my server."
+    commands_class = MyCommands
+
+class MySSHHandler(AsyncSSHHandler):
+    host_key = getRsaKeyFile('server_fingerprint.key')
+    telnet_handler = MyTelnetHandler
+
+    def authCallbackUsername(self, username):
+        if username not in ['john', 'eric', 'terry', 'graham']:
+            raise RuntimeError('Not a Python!')
+
+    def authCallback(self, username, password):
+        if password != 'concord':
+            raise RuntimeError('Wrong password!')
+
+class TelnetServer(socketserver.TCPServer):
+    allow_reuse_address = True
+
+server = TelnetServer(('', 8022), MySSHHandler)
+server.serve_forever()
 ```
 
 

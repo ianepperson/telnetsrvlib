@@ -266,18 +266,19 @@ class Commands:
         cls.__all_commands = all_cmds
 
 
-    def __call__(self, cmd: str, params: list[str]) -> None:
+    def __call__(self, cmd: str, params: list[str]):
         """
         Called when a new command is received for processing.
+        Returns the result of the command function, which may be a coroutine
+        when using the async handler.
         """
         cmd = cmd.upper()
         fn = self.__all_commands.get(cmd)
         if fn is None:
-            self._command_not_found(cmd, params)
-            return
+            return self._command_not_found(cmd, params)
         # The all_commands dict contains class methods.
         # Therefore, must pass in self.
-        fn(self, params)
+        return fn(self, params)
 
     def _command_not_found(self, cmd: str, params:list[str]):
         """
