@@ -33,8 +33,6 @@ jobs:
       - uses: astral-sh/setup-uv@v8.2.0
         with:
           python-version: ${{ matrix.python-version }}
-          python-version-file: ""
-          allow-prereleases: true
 
       - name: Install dependencies
         run: uv sync --extra ssh --extra dev
