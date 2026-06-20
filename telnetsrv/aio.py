@@ -27,9 +27,11 @@ from .constants import (
 )
 from .telnetsrvlib import (
     TelnetHandlerBase,
-    cmd,  # noqa: F401
-    Commands,  # noqa: F401
+    cmd,
+    Commands,
 )
+
+__all__ = ["AsyncInputBashLike", "TelnetHandler", "cmd", "Commands"]
 
 log = logging.getLogger(__name__)
 
@@ -364,9 +366,8 @@ class TelnetHandler(TelnetHandlerBase):
                         for keyseq in self.ESCSEQ.keys():
                             if len(keyseq) == 0:
                                 continue
-                            while (
-                                codes == keyseq[: len(codes)]
-                                and len(codes) <= len(keyseq)
+                            while codes == keyseq[: len(codes)] and len(codes) <= len(
+                                keyseq
                             ):
                                 if codes == keyseq:
                                     c = self.ESCSEQ[keyseq]
@@ -610,7 +611,7 @@ class TelnetHandler(TelnetHandlerBase):
                             await cmd_result
                     except Exception:
                         log.exception("Error calling %s.", cmd_name)
-                        (t, p, tb) = sys.exc_info()
+                        t, p, tb = sys.exc_info()
                         if self.handleException(t, p, tb):
                             break
                 await self.writer.drain()

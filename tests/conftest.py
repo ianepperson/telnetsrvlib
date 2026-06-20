@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from unittest import mock
 
-from telnetsrv.telnetsrvlib import TelnetHandlerBase, Commands
+from telnetsrv.telnetsrvlib import TelnetHandlerBase
 
 
 class MockSocket:

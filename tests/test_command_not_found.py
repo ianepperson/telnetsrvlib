@@ -40,7 +40,7 @@ class TestCommandNotFoundDefault:
 
 class TestCommandNotFoundOverride:
     def _handler_with_capture(self):
-        """Return a (handler, calls) pair whose Commands records command_not_found args."""
+        """Return a handler plus a list that records _command_not_found calls."""
         calls = []
 
         class MyCommands(Commands):

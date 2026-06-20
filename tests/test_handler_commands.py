@@ -62,7 +62,10 @@ class TestCommandRegistration:
         commands = MyCommands(h)
         assert "PRIMARY" in commands._Commands__all_commands
         assert "ALT" in commands._Commands__all_commands
-        assert commands._Commands__all_commands["ALT"] is commands._Commands__all_commands["PRIMARY"]
+        assert (
+            commands._Commands__all_commands["ALT"]
+            is commands._Commands__all_commands["PRIMARY"]
+        )
 
 
 # ---------------------------------------------------------------------------

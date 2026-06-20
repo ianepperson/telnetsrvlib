@@ -222,7 +222,7 @@ class MyServer:
 # Subclass TelnetHandler to add our own commands and to call back
 # to myserver.
 
-class TestTelnetHandler(TelnetHandler):
+class ExampleTelnetHandler(TelnetHandler):
     # Instruct the handler to use these defined commands
     commands_class = MyCommands
 
@@ -300,14 +300,14 @@ if __name__ == '__main__':
 
         # Create the handler for SSH, register the defined handler for use as the PTY
         class TestSSHHandler(SSHHandler):
-            telnet_handler = TestTelnetHandler
+            telnet_handler = ExampleTelnetHandler
             # Create or open the server key file
             host_key = getRsaKeyFile("server_rsa.key")
 
         # Define which handler the server should use:
         Handler = TestSSHHandler
     else:
-        Handler = TestTelnetHandler
+        Handler = ExampleTelnetHandler
 
     if SERVERTYPE == 'green':
         # Multi-green-threaded server

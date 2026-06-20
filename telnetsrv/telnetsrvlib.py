@@ -32,10 +32,20 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
-from .constants import *  # noqa: F401, F403
+from .constants import *  # noqa: E402, F401, F403
+
+__all__ = ["cmd", "Commands", "InputSimple", "InputBashLike", "TelnetHandlerBase"]
 
 
-def _decorate(fn: Callable, name: str, aliases: list[str], hidden: bool) -> Callable:
+def _decorate_cmd(
+    fn: Callable, name: str, aliases: list[str], hidden: bool
+) -> Callable:
+    """Stamp command metadata onto fn and return it.
+
+    Sets fn.command_name, fn.aliases, and fn.hidden. When stacked decorators
+    are present (fn already has aliases), merges the new name/aliases into the
+    existing list rather than overwriting.
+    """
     if hasattr(fn, "aliases"):
         # More than one decorator: prepend to the existing alias list.
         fn.aliases.append(fn.command_name)
@@ -50,23 +60,43 @@ def _decorate(fn: Callable, name: str, aliases: list[str], hidden: bool) -> Call
 
 
 def cmd(names: str | list[str] | Callable, hidden: bool = False) -> Callable:
+    """Decorator that registers a method as a telnet command.
+
+    Usage::
+
+        @cmd('echo')
+        def echo(self, params): ...
+
+        @cmd(['copy', 'repeat'])
+        def copy(self, params): ...
+
+        @cmd('secret', hidden=True)
+        def secret(self, params): ...
+
+    ``names`` may be a string, a list of strings (first is canonical, rest are
+    aliases), or the bare function (when the decorator is used without arguments,
+    the function name is used as the command name).  Pass ``hidden=True`` to
+    suppress the command from help listings.
+    """
     if isinstance(names, Callable):
         # bare decorator without any options
         fn = names
-        return _decorate(fn, fn.__name__, [], hidden)
+        return _decorate_cmd(fn, fn.__name__, [], hidden)
     if isinstance(names, str):
         # decorator with one option - the name, and maybe hidden
-        def _decorate_fn(fn: Callable):
-            return _decorate(fn, names, [], hidden)
-        return _decorate_fn
+        def _decorate_cmd_fn(fn: Callable):
+            return _decorate_cmd(fn, names, [], hidden)
+
+        return _decorate_cmd_fn
 
     # only reaching this point if names is a list of names
     name = names[0]
     alias = list(names[1:])
-    def _decorate_fn(fn: Callable):
-        return _decorate(fn, name, alias, hidden)
 
-    return _decorate_fn
+    def _decorate_cmd_fn(fn: Callable):
+        return _decorate_cmd(fn, name, alias, hidden)
+
+    return _decorate_cmd_fn
 
 
 class Commands:
@@ -106,7 +136,6 @@ class Commands:
 
         cls.__all_commands = all_cmds
 
-
     def __call__(self, cmd: str, params: list[str]):
         """
         Called when a new command is received for processing.
@@ -121,13 +150,12 @@ class Commands:
         # Therefore, must pass in self.
         return fn(self, params)
 
-    def _command_not_found(self, cmd: str, params:list[str]):
+    def _command_not_found(self, cmd: str, params: list[str]):
         """
         Called if no command found that matches.
         params are used for overriding, custom handling and/or custom logging.
         """
         self.handler.writeerror(f"Unknown command '{cmd}'")
-
 
     # Format of docstrings for command methods:
     # Line 0:  Command paramater(s) if any. (Can be blank line)
@@ -147,7 +175,7 @@ class Commands:
         docl = "\n".join([line_.strip() for line_ in doc[2:]])
         if not docl.strip():  # If there isn't anything here, use line 1
             docl = doc[1].strip()
-        self.handler.writeline( f"{cmd} {docp}\n\n{docl}")
+        self.handler.writeline(f"{cmd} {docp}\n\n{docl}")
 
     def _help_all(self):
         """
@@ -873,8 +901,8 @@ class TelnetHandlerBase(socketserver.BaseRequestHandler):
                         for keyseq in self.ESCSEQ.keys():
                             if len(keyseq) == 0:
                                 continue
-                            while (
-                                codes == keyseq[: len(codes)] and len(codes) <= len(keyseq)
+                            while codes == keyseq[: len(codes)] and len(codes) <= len(
+                                keyseq
                             ):
                                 if codes == keyseq:
                                     c = self.ESCSEQ[keyseq]
@@ -977,7 +1005,7 @@ class TelnetHandlerBase(socketserver.BaseRequestHandler):
                         commands(cmd, params)
                     except Exception:
                         log.exception("Error calling %s." % cmd)
-                        (t, p, tb) = sys.exc_info()
+                        t, p, tb = sys.exc_info()
                         if self.handleException(t, p, tb):
                             break
         except EOFError:
