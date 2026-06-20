@@ -639,6 +639,19 @@ class TestAsyncHandle:
         await h.handle()
         assert b"NOSUCHCMD" in h.writer.written or b"Unknown" in h.writer.written
 
+    async def test_async_command_not_found_is_awaited(self):
+        class H(_BaseTestHandler):
+            dispatched = False
+
+            class commands_class(_EchoCommands):
+                async def _command_not_found(self, cmd, params):
+                    H.dispatched = True
+
+        h = make_handler(H)
+        feed(h, list("NOSUCHCMD") + [chr(10)] + list("exit") + [chr(10)])
+        await h.handle()
+        assert H.dispatched is True
+
     async def test_sync_session_start_called(self):
         class H(_BaseTestHandler):
             started = False
