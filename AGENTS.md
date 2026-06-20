@@ -100,6 +100,26 @@ GitHub Actions runs the test suite on Python 3.9, 3.10, 3.11, and 3.12 on every
 pull request and push to master. See `.github/workflows/ci.yml`. CI does not run
 coverage checks; that is a local/PR responsibility.
 
+## Docstrings
+
+Every public method and every test function must have a docstring.
+
+- **Public methods:** one-line summary minimum; add detail when behavior is non-obvious.
+- **Test functions:** describe what is being tested and what outcome is expected.
+
+```python
+def test_writeline_appends_crlf(handler):
+    """writeline appends CRLF to the output sent to the socket."""
+    ...
+
+def writeresponse(self, text):
+    """Write a line of expected command output to the client."""
+    ...
+```
+
+Private methods (prefixed with `_`) and `__dunder__` methods are exempt, but a
+docstring is still welcome when the logic is non-obvious.
+
 ## Key Patterns
 
 - Commands are defined as methods on a `Commands` subclass, decorated with `@cmd`.
