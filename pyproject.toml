@@ -53,7 +53,8 @@ include = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "example-test.py"]
+python_files = ["test_*.py", "*_test.py", "*-test.py"]
 addopts = "--tb=short -q"
 
 [tool.coverage.run]
