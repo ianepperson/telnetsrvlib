@@ -59,6 +59,7 @@ class _AsyncChannelReader:
                 self._reader.feed_data(data)
         except asyncio.CancelledError:
             self._reader.feed_eof()
+            raise
         except Exception:
             self._reader.feed_eof()
 
