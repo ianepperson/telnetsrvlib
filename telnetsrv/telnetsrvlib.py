@@ -37,7 +37,9 @@ from .constants import *  # noqa: E402, F401, F403
 __all__ = ["cmd", "Commands", "InputSimple", "InputBashLike", "TelnetHandlerBase"]
 
 
-def _decorate(fn: Callable, name: str, aliases: list[str], hidden: bool) -> Callable:
+def _decorate_a_cmd(
+    fn: Callable, name: str, aliases: list[str], hidden: bool
+) -> Callable:
     if hasattr(fn, "aliases"):
         # More than one decorator: prepend to the existing alias list.
         fn.aliases.append(fn.command_name)
@@ -55,22 +57,22 @@ def cmd(names: str | list[str] | Callable, hidden: bool = False) -> Callable:
     if isinstance(names, Callable):
         # bare decorator without any options
         fn = names
-        return _decorate(fn, fn.__name__, [], hidden)
+        return _decorate_a_cmd(fn, fn.__name__, [], hidden)
     if isinstance(names, str):
         # decorator with one option - the name, and maybe hidden
-        def _decorate_fn(fn: Callable):
-            return _decorate(fn, names, [], hidden)
+        def _decorate_a_cmd_fn(fn: Callable):
+            return _decorate_a_cmd(fn, names, [], hidden)
 
-        return _decorate_fn
+        return _decorate_a_cmd_fn
 
     # only reaching this point if names is a list of names
     name = names[0]
     alias = list(names[1:])
 
-    def _decorate_fn(fn: Callable):
-        return _decorate(fn, name, alias, hidden)
+    def _decorate_a_cmd_fn(fn: Callable):
+        return _decorate_a_cmd(fn, name, alias, hidden)
 
-    return _decorate_fn
+    return _decorate_a_cmd_fn
 
 
 class Commands:
