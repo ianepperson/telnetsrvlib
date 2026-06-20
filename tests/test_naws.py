@@ -2,7 +2,7 @@
 
 import struct
 
-from telnetsrv.telnetsrvlib import NAWS, DO, SE, NOOPT
+from telnetsrv.constants import NAWS, DO, SE, NOOPT
 
 
 def naws_payload(width: int, height: int) -> str:

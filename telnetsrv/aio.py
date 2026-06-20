@@ -10,10 +10,7 @@ import logging
 import sys
 from typing import Any
 
-from .telnetsrvlib import (
-    TelnetHandlerBase,
-    cmd,  # noqa: F401
-    Commands,  # noqa: F401
+from .constants import (
     ANSI_KEY_TO_CURSES,
     ANSI_START_SEQ,
     BELL,
@@ -27,6 +24,11 @@ from .telnetsrvlib import (
     WILL,
     WONT,
     theNULL,
+)
+from .telnetsrvlib import (
+    TelnetHandlerBase,
+    cmd,  # noqa: F401
+    Commands,  # noqa: F401
 )
 
 log = logging.getLogger(__name__)
@@ -182,6 +184,7 @@ class TelnetHandler(TelnetHandlerBase):
     """
 
     input_reader = AsyncInputBashLike
+    OPTION_NEGOTIATION_DELAY: float = 0.5
 
     def __init__(
         self,
@@ -276,7 +279,7 @@ class TelnetHandler(TelnetHandlerBase):
         self._task_ic = asyncio.create_task(self.inputcooker())
 
         # Allow options negotiation to complete before the session begins.
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(self.OPTION_NEGOTIATION_DELAY)
 
     async def finish(self) -> None:
         """Tear down the connection and call session_end."""

@@ -8,14 +8,8 @@ import pytest
 from unittest import mock
 
 from telnetsrv.aio import TelnetHandler, AsyncInputBashLike, _EOF_SENTINEL, cmd, Commands
-from telnetsrv.telnetsrvlib import (
-    TelnetHandlerBase,
-    theNULL,
-    IAC,
-    DO,
-    WILL,
-    ECHO,
-)
+from telnetsrv.constants import theNULL, IAC, DO, WILL, ECHO
+from telnetsrv.telnetsrvlib import TelnetHandlerBase
 
 
 # ===========================================================================
@@ -829,11 +823,12 @@ class _IntegrationHandler(TelnetHandler):
     PROMPT = "$ "
     authCallback = None
     commands_class = _EchoCommands
+    OPTION_NEGOTIATION_DELAY = 0
 
     async def setup(self):
         self.setterm(self.TERM)
         self.sock = None
-        # Skip option negotiation and 0.5 s sleep entirely
+        # Skip option negotiation entirely (no DOACK/WILLACK sends)
         self._task_ic = asyncio.create_task(self.inputcooker())
 
 

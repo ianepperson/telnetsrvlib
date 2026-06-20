@@ -66,6 +66,7 @@ class _MinimalHandler(TelnetHandler):
     PROMPT = ">"
     authCallback = None
     commands_class = Commands  # empty command set
+    OPTION_NEGOTIATION_DELAY = 0
 
     async def setup(self):
         self.setterm(self.TERM)

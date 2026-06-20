@@ -440,6 +440,10 @@ class MyCommands(Commands):
         self.handler.writemessage(message)
 ```
 
+The write methods (`writeresponse`, `writeerror`, `writemessage`, `writeline`, `write`) are
+**not** coroutines and should not be awaited. They buffer output synchronously into the asyncio
+stream; the data is flushed to the network automatically between command invocations.
+
 `session_start` and `session_end` may also be defined as coroutines in the async handler.
 
 
