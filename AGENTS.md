@@ -12,6 +12,31 @@ multiple handler flavors: threaded (`telnetsrv/threaded.py`), green/gevent
 
 Requires Python 3.9+.
 
+## Running the Example Server
+
+`example.py` is a fully functional demo server. Run it when asked to start a test
+server or example server:
+
+```bash
+uv run python example.py <PORT>
+```
+
+Options:
+- `-s` / `--ssh` — run as SSH server (requires paramiko)
+- `-g` / `--green` — use gevent cooperative multitasking
+- `-e` / `--eventlet` — use eventlet cooperative multitasking
+- default (no flag) — threaded mode
+
+Example — threaded telnet server on port 8023:
+
+```bash
+uv run python example.py 8023
+```
+
+Connect with `telnet localhost 8023`. Stop with Ctrl-C. The server prompts for a
+username (any non-empty value accepted) and exposes commands: `echo`, `timer`,
+`info`, `params`, `debug`, `passwd`, `connections`, `who`, `help`.
+
 ## Documentation
 
 `README.md` is the authoritative reference for library usage: handler flavors,
