@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "telnetsrv"
 version = "1.0"
 description = "Telnet server handler library"
-readme = "README.rst"
+readme = "README.md"
 requires-python = ">=3.9"
 authors = [
     {name = "Ian Epperson", email = "ian@epperson.com"},
@@ -48,12 +48,13 @@ packages = ["telnetsrv"]
 [tool.hatch.build.targets.sdist]
 include = [
     "telnetsrv/",
-    "README.rst",
+    "README.md",
     "COPYING.txt",
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "example-test.py"]
+python_files = ["test_*.py", "*_test.py", "*-test.py"]
 addopts = "--tb=short -q"
 
 [tool.coverage.run]

@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import curses.ascii
 import logging
 import argparse
 
@@ -70,17 +71,23 @@ class MyCommands(Commands):
         '''[<params>]*
         Echos back the raw received parameters.
         '''
-        self.writeresponse("params == %r" % params)
+        self.handler.writeresponse("params == %r" % params)
 
     @cmd
     def info(self, params):
         '''
         Provides some information about the current terminal.
         '''
-        self.writeresponse( "Username: %s, terminal type: %s" % (self.username, self.TERM) )
-        self.writeresponse( "Command history:" )
-        for c in self.history:
-            self.writeresponse("  %r" % c)
+        self.handler.writeresponse(
+            f"Username: {self.handler.username}, "
+            f"terminal type: {self.handler.TERM}"
+        )
+        self.handler.writeresponse(
+            f"Width: {self.handler.WIDTH}, height: {self.handler.HEIGHT}"
+        )
+        self.handler.writeresponse( "Command history:" )
+        for c in self.handler.history:
+            self.handler.writeresponse("  %r" % c)
 
     @cmd(['timer', 'timeit'])
     def timer(self, params):
@@ -172,7 +179,7 @@ class MyCommands(Commands):
         """
         Show how many logins there have been.
         """
-        self.handler.writeline(
+        self.handler.writeresponse(
             f"There have been {self.handler.myserver.connection_count} connections"
         )
 
@@ -182,7 +189,7 @@ class MyCommands(Commands):
         Show who has logged in.
         """
         for user, count in self.handler.myserver.user_connect.items():
-            self.handler.writeline(f"{user} : {count}")
+            self.handler.writeresponse(f"{user} : {count}")
 
 
 # The TelnetHandler instance is re-created for each connection.
