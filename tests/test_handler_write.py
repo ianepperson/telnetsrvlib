@@ -1,6 +1,6 @@
 """Tests for TelnetHandlerBase write/output methods."""
 
-from telnetsrv.telnetsrvlib import IAC
+from telnetsrv.constants import IAC
 
 
 def sent(handler) -> str:

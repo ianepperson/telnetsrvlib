@@ -2,7 +2,7 @@
 
 from unittest import mock
 
-from telnetsrv.telnetsrvlib import (
+from telnetsrv.constants import (
     IAC,
     DO,
     DONT,

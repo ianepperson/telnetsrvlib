@@ -33,12 +33,11 @@ Homepage = "https://github.com/ianepperson/telnetsrvlib"
 [project.optional-dependencies]
 green = ["gevent"]
 ssh = ["paramiko"]
-
-[dependency-groups]
 dev = [
     "black>=24.0",
     "flake8>=7.0",
     "pytest>=8.0",
+    "pytest-asyncio>=0.23",
     "pytest-cov>=4.0",
 ]
 
@@ -56,6 +55,7 @@ include = [
 testpaths = ["tests", "example-test.py"]
 python_files = ["test_*.py", "*_test.py", "*-test.py"]
 addopts = "--tb=short -q"
+asyncio_mode = "auto"
 
 [tool.coverage.run]
 source = ["telnetsrv"]

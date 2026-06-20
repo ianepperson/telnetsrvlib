@@ -4,7 +4,7 @@ import curses
 import pytest
 from unittest import mock
 
-from telnetsrv.telnetsrvlib import (
+from telnetsrv.constants import (
     IAC,
     DO,
     WILL,
@@ -121,7 +121,7 @@ class TestInputCooker:
         mock_oh.assert_called_once_with(handler.sock, WILL, ECHO)
 
     def test_iac_sb_se_stores_subneg_data(self, handler):
-        from telnetsrv.telnetsrvlib import TTYPE, IS, SB as _SB, SE as _SE
+        from telnetsrv.constants import TTYPE, IS, SB as _SB, SE as _SE
 
         payload = TTYPE + IS + "ansi"
         self._run(handler, IAC + _SB + payload + IAC + _SE)
