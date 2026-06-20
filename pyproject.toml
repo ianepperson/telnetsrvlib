@@ -14,6 +14,8 @@ authors = [
 keywords = ["gevent", "telnet", "server"]
 classifiers = [
     "Programming Language :: Python",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Development Status :: 4 - Beta",
     "Environment :: Other Environment",
     "Intended Audience :: Developers",
