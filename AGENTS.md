@@ -12,6 +12,22 @@ multiple handler flavors: threaded (`telnetsrv/threaded.py`), green/gevent
 
 Requires Python 3.9+.
 
+## Documentation
+
+`README.md` is the authoritative reference for library usage: handler flavors,
+command definition patterns, SSH setup, serving examples, and all public API.
+
+**Read `README.md` before making changes** to understand existing usage patterns.
+
+**Update `README.md` whenever:**
+- Public API is added, changed, or removed
+- A new usage pattern is introduced or an existing one changes
+- New handler flavors or options are added
+- Default behavior changes
+
+Treat `README.md` as part of the changeset — a feature or fix is not complete
+until the docs reflect it.
+
 ## Environment Setup
 
 ```bash
