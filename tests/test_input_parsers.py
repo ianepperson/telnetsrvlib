@@ -1,7 +1,6 @@
 from unittest import mock
 from telnetsrv.telnetsrvlib import InputSimple, InputBashLike
 
-
 # ---------------------------------------------------------------------------
 # InputSimple
 # ---------------------------------------------------------------------------

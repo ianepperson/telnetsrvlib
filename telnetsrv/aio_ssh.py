@@ -6,15 +6,15 @@ from __future__ import annotations
 import asyncio
 import logging
 from socketserver import BaseRequestHandler
-from threading import Thread
-
 from paramiko import Transport
 
 from .paramiko_ssh import (
     SSHHandler,
-    getKeyFile,  # noqa: F401 — re-exported for user convenience
-    getRsaKeyFile,  # noqa: F401 — deprecated alias, re-exported for backward compat
+    getKeyFile,
+    getRsaKeyFile,
 )
+
+__all__ = ["AsyncSSHHandler", "getKeyFile", "getRsaKeyFile"]
 
 log = logging.getLogger(__name__)
 
@@ -137,7 +137,9 @@ class AsyncSSHHandler(SSHHandler):
     Or with gevent (after ``monkey.patch_all()``)::
 
         import gevent.server
-        server = gevent.server.StreamServer(('', 8022), MySSHHandler.streamserver_handle)
+        server = gevent.server.StreamServer(
+            ('', 8022), MySSHHandler.streamserver_handle
+        )
         server.serve_forever()
 
     Notes

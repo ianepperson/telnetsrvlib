@@ -51,6 +51,13 @@ include = [
     "COPYING.txt",
 ]
 
+[project.scripts]
+lint = "telnetsrv._lint:main"
+
+[tool.black]
+line-length = 88
+target-version = ["py39", "py310", "py311", "py312"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests", "example-test.py"]
 python_files = ["test_*.py", "*_test.py", "*-test.py"]

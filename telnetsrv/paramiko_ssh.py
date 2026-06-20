@@ -7,7 +7,6 @@ from socketserver import BaseRequestHandler
 from paramiko import (
     Transport,
     ServerInterface,
-    RSAKey,
     Ed25519Key,
     PKey,
     SSHException,
@@ -17,6 +16,7 @@ from paramiko import (
     OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED,
 )
 
+__all__ = ["SSHHandler", "getKeyFile", "getRsaKeyFile"]
 
 log = logging.getLogger(__name__)
 
@@ -108,10 +108,14 @@ class SSHHandler(ServerInterface, BaseRequestHandler):
                     '  Try host_key = paramiko_ssh.getKeyFile("server.key").'
                 )
 
-        if self.warn_of_insecure_auth and "none" in self.get_allowed_auths("").split(","):
+        if self.warn_of_insecure_auth and "none" in self.get_allowed_auths("").split(
+            ","
+        ):
             log.warning(
-                "SSH server allows 'none' authentication — clients can connect without credentials. "
-                "Set authCallback, authCallbackKey, or authCallbackUsername to require authentication."
+                "SSH server allows 'none' authentication — "
+                "clients can connect without credentials. "
+                "Set authCallback, authCallbackKey, or authCallbackUsername "
+                "to require authentication."
             )
 
         try:

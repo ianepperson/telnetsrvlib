@@ -3,3 +3,6 @@ max-line-length = 88
 # E203: whitespace before ':' — conflicts with black's slice formatting
 # W503: line break before binary operator — conflicts with black
 extend-ignore = E203, W503
+# F405: star-import usage warnings in telnetsrvlib.py are intentional (constants DSL)
+per-file-ignores =
+    telnetsrv/telnetsrvlib.py: F405

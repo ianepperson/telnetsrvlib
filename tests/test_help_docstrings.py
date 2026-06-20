@@ -6,9 +6,8 @@ Docstring format (all three lines required):
   Line 2+: long description (shown in detailed view; falls back to line 1 if absent)
 """
 
-import pytest
 from telnetsrv.telnetsrvlib import cmd, Commands
-from tests.conftest import ConcreteHandler, make_handler
+from tests.conftest import make_handler
 
 
 def recv(handler) -> str:
@@ -32,6 +31,7 @@ def make_commands_for_help(handler, **fns):
         def _make_wrapper(f, cname, h, d):
             def wrapper(self, params):
                 return f(params)
+
             wrapper.__doc__ = d
             wrapper.command_name = cname
             wrapper.aliases = []

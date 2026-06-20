@@ -7,10 +7,15 @@ import curses
 import pytest
 from unittest import mock
 
-from telnetsrv.aio import TelnetHandler, AsyncInputBashLike, _EOF_SENTINEL, cmd, Commands
+from telnetsrv.aio import (
+    TelnetHandler,
+    AsyncInputBashLike,
+    _EOF_SENTINEL,
+    cmd,
+    Commands,
+)
 from telnetsrv.constants import theNULL, IAC, DO, WILL, ECHO
 from telnetsrv.telnetsrvlib import TelnetHandlerBase
-
 
 # ===========================================================================
 # Shared infrastructure
@@ -177,7 +182,9 @@ class TestAsyncHandlerInit:
 
     def test_client_address_from_writer_peername(self):
         w = MockWriter()
-        w.get_extra_info = lambda name, default=None: ("1.2.3.4", 9999) if name == "peername" else default
+        w.get_extra_info = lambda name, default=None: (
+            ("1.2.3.4", 9999) if name == "peername" else default
+        )
         h = TelnetHandler(MockReader(), w)
         assert h.client_address == ("1.2.3.4", 9999)
 
@@ -655,6 +662,7 @@ class TestAsyncHandle:
     async def test_sync_session_start_called(self):
         class H(_BaseTestHandler):
             started = False
+
             def session_start(self):
                 H.started = True
 
@@ -666,6 +674,7 @@ class TestAsyncHandle:
     async def test_async_session_start_awaited(self):
         class H(_BaseTestHandler):
             started = False
+
             async def session_start(self):
                 H.started = True
 
@@ -702,6 +711,7 @@ class TestAsyncFinish:
     async def test_sync_session_end_called(self):
         class H(_BaseTestHandler):
             ended = False
+
             def session_end(self):
                 H.ended = True
 
@@ -712,6 +722,7 @@ class TestAsyncFinish:
     async def test_async_session_end_awaited(self):
         class H(_BaseTestHandler):
             ended = False
+
             async def session_end(self):
                 H.ended = True
 
@@ -738,6 +749,7 @@ class TestAsyncFinish:
         Uses a never-returning reader so the inputcooker would run forever
         without an explicit cancellation — exposing the leak.
         """
+
         class _HangingReader:
             async def read(self, n=-1):
                 await asyncio.sleep(9999)  # never returns during the test
@@ -775,7 +787,9 @@ class TestReadUntil:
         reader.feed_eof()
 
         # Patch get_event_loop to raise so we'd know immediately if it's called.
-        with mock.patch("asyncio.get_event_loop", side_effect=RuntimeError("use get_running_loop")):
+        with mock.patch(
+            "asyncio.get_event_loop", side_effect=RuntimeError("use get_running_loop")
+        ):
             result = await _read_until(reader, b"hello", timeout=1.0)
 
         assert b"hello" in result
@@ -820,7 +834,9 @@ async def _read_until(reader, marker: bytes, timeout: float = 3.0) -> bytes:
         if remaining <= 0:
             break
         try:
-            chunk = await asyncio.wait_for(reader.read(4096), timeout=min(remaining, 0.3))
+            chunk = await asyncio.wait_for(
+                reader.read(4096), timeout=min(remaining, 0.3)
+            )
         except asyncio.TimeoutError:
             break
         if not chunk:
