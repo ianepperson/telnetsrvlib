@@ -1,9 +1,9 @@
 # telnetsrvlib
 
-Telnet server using gevent or threading.
+Telnet server using gevent, threading, or asyncio.
 
 Copied from http://pytelnetsrvlib.sourceforge.net/
-and modified to support gevent and eventlet, better input handling, clean asynchronous messages and much more.
+and modified to support gevent, eventlet, asyncio, better input handling, clean asynchronous messages and much more.
 Licensed under the LGPL, as per the SourceForge notes.
 
 **Requires Python 3.10 or later.**
@@ -17,8 +17,7 @@ an SSH handler.
 You use the library to create your own handler, then pass that handler to a StreamServer
 or TCPServer to perform the actual connection tasks.
 
-This library includes two flavors of the server handler, one uses separate threads,
-the other uses greenlets (green pseudo-threads) via gevent or eventlet.
+This library includes three flavors of the server handler: threaded, green, and asyncio.
 
 The threaded version uses a separate thread to process the input buffer and
 semaphores reading and writing. The provided test server only handles a single
@@ -27,6 +26,10 @@ connection at a time.
 The green version moves the input buffer processing into a greenlet to allow
 cooperative multi-processing. This results in significantly less memory usage
 and nearly no idle processing. The provided test server handles a large number of connections.
+
+The asyncio version integrates with Python's built-in asyncio event loop, requiring
+no extra dependencies. It supports async command handlers and handles multiple
+connections efficiently.
 
 
 ## Install
@@ -388,8 +391,9 @@ class MyHandler(TelnetHandler):
 
 Now you have a shiny new handler class, but it doesn't serve itself - it must be called
 from an appropriate server. The server will create an instance of the TelnetHandler class
-for each new connection. The handler class will work with either a gevent StreamServer instance
-(for the green version) or with a `socketserver.TCPServer` instance (for the threaded version).
+for each new connection. The handler class will work with a gevent StreamServer instance (for the green version),
+a `socketserver.TCPServer` instance (for the threaded version), or `asyncio.start_server`
+(for the asyncio version).
 
 ### Threaded
 
@@ -462,8 +466,8 @@ stream; the data is flushed to the network automatically between command invocat
 ## Short Example
 
 ```python
-import gevent, gevent.server
-from telnetsrv.green import TelnetHandler, cmd, Commands
+import asyncio
+from telnetsrv.aio import TelnetHandler, cmd, Commands
 
 class MyCommands(Commands):
     @cmd(['echo', 'copy', 'repeat'])
@@ -475,7 +479,7 @@ class MyCommands(Commands):
         self.handler.writeresponse(' '.join(params))
 
     @cmd('timer')
-    def timer(self, params):
+    async def timer(self, params):
         '''<time> <message>
         In <time> seconds, display <message>.
         Send a message after a delay.
@@ -491,7 +495,8 @@ class MyCommands(Commands):
             self.handler.writeerror("Need both a time and a message")
             return
         self.handler.writeresponse("Waiting %d seconds..." % delay)
-        gevent.spawn_later(delay, self.handler.writemessage, message)
+        await asyncio.sleep(delay)
+        self.handler.writemessage(message)
 
 
 class MyTelnetHandler(TelnetHandler):
@@ -499,8 +504,14 @@ class MyTelnetHandler(TelnetHandler):
     commands_class = MyCommands
 
 
-server = gevent.server.StreamServer(("", 8023), MyTelnetHandler.streamserver_handle)
-server.serve_forever()
+async def main():
+    server = await asyncio.start_server(
+        MyTelnetHandler.asyncio_handle, host="", port=8023
+    )
+    async with server:
+        await server.serve_forever()
+
+asyncio.run(main())
 ```
 
 
@@ -698,3 +709,20 @@ server.serve_forever()
 ## Longer Example
 
 See https://github.com/ianepperson/telnetsrvlib/blob/master/example.py
+
+Demonstrates the threaded and green flavors of the library. Accepts `--green`
+(gevent), `--eventlet`, or defaults to threaded. Also supports `--ssh` via
+`SSHHandler` with Paramiko. The `timer` command uses `gevent.spawn_later`,
+`eventlet.spawn_after`, or `threading.Timer` depending on the selected backend,
+and `passwd` uses the synchronous `handler.readline()` for secure input.
+
+## Asyncio Example
+
+See https://github.com/ianepperson/telnetsrvlib/blob/master/example-asyncio.py
+
+Demonstrates the asyncio flavor of the library. Supports both plain telnet
+(served via `asyncio.start_server`) and SSH (served via `socketserver.TCPServer`
+with `AsyncSSHHandler`, which runs each session's async handler in its own
+`asyncio.run()` call). The `timer` command uses `asyncio.create_task` for
+non-blocking delayed messages, and `passwd` uses `await handler.readline()`
+for secure input.

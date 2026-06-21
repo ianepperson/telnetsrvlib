@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "telnetsrv"
-version = "1.0.1"
+version = "1.0.2"
 description = "Telnet server handler library"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -61,7 +61,7 @@ line-length = 88
 target-version = ["py310", "py311", "py312", "py313"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "example-test.py"]
+testpaths = ["tests", "example-test.py", "example-asyncio-test.py"]
 python_files = ["test_*.py", "*_test.py", "*-test.py"]
 addopts = "--tb=short -q"
 asyncio_mode = "auto"
