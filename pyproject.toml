@@ -4,10 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "telnetsrv"
-version = "1.0"
+version = "1.0.1"
 description = "Telnet server handler library"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
     {name = "Ian Epperson", email = "ian@epperson.com"},
 ]
@@ -34,11 +34,11 @@ Homepage = "https://github.com/ianepperson/telnetsrvlib"
 
 [project.optional-dependencies]
 green = ["gevent"]
-ssh = ["paramiko"]
+ssh = ["paramiko", "cryptography>=48.0.1"]
 dev = [
-    "black>=24.0",
+    "black>=26.3.1",
     "flake8>=7.0",
-    "pytest>=8.0",
+    "pytest>=9.0.3",
     "pytest-asyncio>=0.23",
     "pytest-cov>=4.0",
 ]
@@ -58,7 +58,7 @@ lint = "telnetsrv._lint:main"
 
 [tool.black]
 line-length = 88
-target-version = ["py39", "py310", "py311", "py312"]
+target-version = ["py310", "py311", "py312", "py313"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "example-test.py"]

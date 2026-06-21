@@ -6,7 +6,7 @@ Copied from http://pytelnetsrvlib.sourceforge.net/
 and modified to support gevent and eventlet, better input handling, clean asynchronous messages and much more.
 Licensed under the LGPL, as per the SourceForge notes.
 
-**Requires Python 3.9 or later.**
+**Requires Python 3.10 or later.**
 
 This library allows you to easily create a Telnet or SSH server powered by your Python code.
 The library negotiates with a Telnet client, parses commands, provides an automated
