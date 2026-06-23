@@ -211,13 +211,32 @@ uv publish --token pypi-<your-token-here>
 `uv publish` uploads everything in `dist/` to PyPI. Confirm the release at
 https://pypi.org/project/telnetsrv/ after it completes.
 
+After publishing, tag the release in GitHub:
+
+```bash
+git tag v<version>
+git push origin v<version>
+```
+
+Then create a GitHub release at https://github.com/ianepperson/telnetsrvlib/releases/new
+pointing at that tag. The tag must match the version in `pyproject.toml` exactly
+(e.g. `v1.0.2` for version `1.0.2`).
+
 ### Checklist before publishing
 
 1. All tests pass: `uv run pytest`
 2. Coverage ≥ 90%: `uv run pytest --cov=telnetsrv --cov-report=term-missing`
 3. `README.md` reflects the release (new API, changed behavior, etc.)
-4. Version in `pyproject.toml` is bumped
-5. `dist/` contains only the new artifacts (no leftover old-version files)
+4. `CHANGELOG.md` has an entry for the new version with date and a summary of notable changes
+5. Version in `pyproject.toml` is bumped
+6. `dist/` contains only the new artifacts (no leftover old-version files)
+
+### Checklist after publishing
+
+1. Confirm package is live: https://pypi.org/project/telnetsrv/
+2. Tag the release: `git tag v<version> && git push origin v<version>`
+3. Create a GitHub release at https://github.com/ianepperson/telnetsrvlib/releases/new
+4. Update the comparison links at the bottom of `CHANGELOG.md` to include the new tag
 
 ## Key Patterns
 
